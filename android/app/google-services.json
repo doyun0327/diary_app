@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "511504695762",
+    "project_id": "project-71a14b25-7c8b-4ead-a73",
+    "storage_bucket": "project-71a14b25-7c8b-4ead-a73.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:511504695762:android:2dc39a8eb5e3a6ec8c480b",
+        "android_client_info": {
+          "package_name": "com.yun.diary_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "511504695762-a5ldsnm5evd835k4vkdo02peon5c2b3j.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpfX8hFwxtwsL0Bvp1kRHZcSfneDgiMU0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "511504695762-a5ldsnm5evd835k4vkdo02peon5c2b3j.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
