@@ -14,14 +14,27 @@ class WebViewHost {
     await web.runJavaScript(js);
   }
 
-  Future<void> dispatchEvent(String name, [Object? detail]) async {
-    if (detail == null) {
-      await runJs("window.dispatchEvent(new Event(${jsonEncode(name)}));");
-      return;
-    }
-    final payload = jsonEncode(detail);
-    await runJs(
-      "window.dispatchEvent(new CustomEvent(${jsonEncode(name)}, { detail: $payload }));",
-    );
+  Future<void> markFlutter() async {
+    await runJs('window.__DIARY_FLUTTER__ = true;');
+  }
+
+  Future<void> dispatchGoogleIdToken(String idToken) async {
+    final payload = jsonEncode(idToken);
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryGoogleIdToken === 'function') {
+        window.__onDiaryGoogleIdToken($payload);
+      }
+    ''');
+  }
+
+  Future<void> dispatchGoogleSignInError(String reason) async {
+    final payload = jsonEncode(reason);
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryGoogleSignInError === 'function') {
+        window.__onDiaryGoogleSignInError($payload);
+      }
+    ''');
   }
 }

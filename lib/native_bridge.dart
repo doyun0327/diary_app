@@ -18,7 +18,7 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     final type = data['type'] as String? ?? 'share';
 
     if (type == 'googleSignIn') {
-      await nativeGoogleSignIn();
+      enqueueNativeGoogleSignIn();
       return;
     }
     if (type == 'googleSignOut') {
