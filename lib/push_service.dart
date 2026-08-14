@@ -8,8 +8,10 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'firebase_options.dart';
+import 'native_bridge.dart';
 
 const kDiaryPushChannelId = 'diary_room';
+const kDiaryDownloadChannelId = 'diary_download';
 
 final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
 
@@ -60,30 +62,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> initDiaryPush() async {
-  final options = DiaryFirebaseOptions.toOptions();
-  if (options == null) {
-    debugPrint(
-      '[push] Firebase options empty. '
-      'Set FIREBASE_* or fill DiaryFirebaseOptions / google-services.json',
-    );
-    return;
-  }
-
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: options);
-    }
-  } catch (e) {
-    debugPrint('[push] Firebase.initializeApp failed: $e');
-    return;
-  }
-
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
   const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   await _local.initialize(
     const InitializationSettings(android: androidInit),
     onDidReceiveNotificationResponse: (response) {
+      if (handleSavedFileNotification(response.payload)) return;
       final payload = _parsePayload(response.payload);
       if (payload != null) {
         diaryPush.injectOpen(payload);
@@ -103,10 +86,44 @@ Future<void> initDiaryPush() async {
       >()
       ?.createNotificationChannel(channel);
 
+  const downloadChannel = AndroidNotificationChannel(
+    kDiaryDownloadChannelId,
+    '다운로드',
+    description: '일기장 PDF 저장',
+    importance: Importance.high,
+  );
+  await _local
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(downloadChannel);
+
+  savedFileNotice = showSavedFileNotification;
+
   final notif = await Permission.notification.request();
   if (!notif.isGranted) {
     debugPrint('[push] notification permission denied');
   }
+
+  final options = DiaryFirebaseOptions.toOptions();
+  if (options == null) {
+    debugPrint(
+      '[push] Firebase options empty. '
+      'Set FIREBASE_* or fill DiaryFirebaseOptions / google-services.json',
+    );
+    return;
+  }
+
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: options);
+    }
+  } catch (e) {
+    debugPrint('[push] Firebase.initializeApp failed: $e');
+    return;
+  }
+
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   await FirebaseMessaging.instance.requestPermission(
     alert: true,
@@ -142,6 +159,29 @@ Future<void> initDiaryPush() async {
       diaryPush.pendingOpen = payload;
     }
   }
+}
+
+Future<void> showSavedFileNotification(String uri, String mime) async {
+  await _local.show(
+    uri.hashCode & 0x7fffffff,
+    '일기를 저장했어요.',
+    '소중한 추억을 오래 간직해보세요. 💛',
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        kDiaryDownloadChannelId,
+        '다운로드',
+        channelDescription: '일기장 PDF 저장',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+    ),
+    payload: jsonEncode({
+      'type': 'openFile',
+      'uri': uri,
+      'mime': mime,
+    }),
+  );
 }
 
 void _showForeground(RemoteMessage message) {

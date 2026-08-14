@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'file_chooser.dart';
@@ -8,9 +11,10 @@ import 'native_bridge.dart';
 import 'push_service.dart';
 import 'webview_host.dart';
 
-/// Android 에뮬레이터 → PC의 Vite (5173)
-/// 배포본을 보려면 Cloudflare URL로 바꾸세요. 예: https://pageby-diary.<계정>.workers.dev
-const String kDiaryWebUrl = 'http://10.161.172.7:5173';
+/// USB 실기기: `adb reverse tcp:5173 tcp:5173` 후 이 주소
+/// 에뮬레이터: http://10.0.2.2:5173  (또는 노트북 LAN IP)
+/// 배포본: Cloudflare URL
+const String kDiaryWebUrl = 'http://127.0.0.1:5173';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,12 +28,13 @@ class DiaryApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Diary',
+      title: 'pageBy',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.brown),
         useMaterial3: true,
       ),
+      scaffoldMessengerKey: diaryMessengerKey,
       home: const DiaryWebViewPage(),
     );
   }
@@ -46,6 +51,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   late final WebViewController _controller;
   var _loading = true;
   var _openingGoogle = false;
+  var _edgeDragDx = 0.0;
 
   @override
   void initState() {
@@ -108,18 +114,73 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     });
   }
 
+  Future<bool> _goBackInWeb() async {
+    try {
+      final raw = await _controller.runJavaScriptReturningResult('''
+        (function(){
+          try {
+            if (typeof window.diaryGoBack === 'function') {
+              return !!window.diaryGoBack();
+            }
+            window.dispatchEvent(new Event('diary-native-back'));
+            return false;
+          } catch (e) {
+            return false;
+          }
+        })()
+      ''');
+      return raw.toString().replaceAll('"', '').toLowerCase() == 'true';
+    } catch (e) {
+      debugPrint('web goBack failed: $e');
+      return false;
+    }
+  }
+
+  Future<void> _handleSystemBack() async {
+    final handled = await _goBackInWeb();
+    if (!handled) {
+      await SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            WebViewWidget(controller: _controller),
-            if (_loading)
-              const Center(child: CircularProgressIndicator()),
-          ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        unawaited(_handleSystemBack());
+      },
+      child: Scaffold(
+          body: SafeArea(
+            child: Stack(
+              children: [
+                WebViewWidget(controller: _controller),
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 28,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragStart: (_) => _edgeDragDx = 0,
+                    onHorizontalDragUpdate: (details) {
+                      _edgeDragDx += details.delta.dx;
+                    },
+                    onHorizontalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity > 180 || _edgeDragDx > 40) {
+                        unawaited(_goBackInWeb());
+                      }
+                    },
+                  ),
+                ),
+                if (_loading)
+                  const Center(child: CircularProgressIndicator()),
+              ],
+            ),
+          ),
         ),
-      ),
     );
   }
 }
