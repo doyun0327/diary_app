@@ -136,6 +136,12 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     }
   }
 
+  Future<void> _runHeaderAction(String action) async {
+    await _controller.runJavaScript(
+      "if (typeof window.diaryHeaderAction === 'function') window.diaryHeaderAction('$action');",
+    );
+  }
+
   Future<void> _handleSystemBack() async {
     final handled = await _goBackInWeb();
     if (!handled) {
@@ -151,36 +157,119 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
         if (didPop) return;
         unawaited(_handleSystemBack());
       },
-      child: Scaffold(
-          body: SafeArea(
-            child: Stack(
-              children: [
-                WebViewWidget(controller: _controller),
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  width: 28,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onHorizontalDragStart: (_) => _edgeDragDx = 0,
-                    onHorizontalDragUpdate: (details) {
-                      _edgeDragDx += details.delta.dx;
-                    },
-                    onHorizontalDragEnd: (details) {
-                      final velocity = details.primaryVelocity ?? 0;
-                      if (velocity > 180 || _edgeDragDx > 40) {
-                        unawaited(_goBackInWeb());
-                      }
-                    },
+      child: ValueListenableBuilder<DiaryAppBarState>(
+        valueListenable: diaryAppBar,
+        builder: (context, header, _) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            appBar: header.visible
+                ? AppBar(
+                    toolbarHeight: 44,
+                    automaticallyImplyLeading: false,
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF1A1A1A),
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    surfaceTintColor: Colors.transparent,
+                    centerTitle: false,
+                    titleSpacing: 4,
+                    shape: const Border(
+                      bottom: BorderSide(color: Color(0xFFEBEBEB)),
+                    ),
+                    title: header.showCalendar
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 40,
+                                ),
+                                onPressed: () =>
+                                    unawaited(_runHeaderAction('prevMonth')),
+                                icon: const Icon(Icons.chevron_left),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 2,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: () => unawaited(
+                                  _runHeaderAction('openMonthPicker'),
+                                ),
+                                child: Text(
+                                  header.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Color(0xFF1A1A1A),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 36,
+                                  minHeight: 40,
+                                ),
+                                onPressed: () =>
+                                    unawaited(_runHeaderAction('nextMonth')),
+                                icon: const Icon(Icons.chevron_right),
+                              ),
+                            ],
+                          )
+                        : null,
+                    actions: [
+                      IconButton(
+                        onPressed: () =>
+                            unawaited(_runHeaderAction('openMenu')),
+                        icon: const Icon(Icons.menu),
+                      ),
+                    ],
+                  )
+                : null,
+            body: SafeArea(
+              top: !header.visible,
+              child: Stack(
+                children: [
+                  WebViewWidget(controller: _controller),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 28,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragStart: (_) => _edgeDragDx = 0,
+                      onHorizontalDragUpdate: (details) {
+                        _edgeDragDx += details.delta.dx;
+                      },
+                      onHorizontalDragEnd: (details) {
+                        final velocity = details.primaryVelocity ?? 0;
+                        if (velocity > 180 || _edgeDragDx > 40) {
+                          unawaited(_goBackInWeb());
+                        }
+                      },
+                    ),
                   ),
-                ),
-                if (_loading)
-                  const Center(child: CircularProgressIndicator()),
-              ],
+                  if (_loading)
+                    const Center(child: CircularProgressIndicator()),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
+      ),
     );
   }
 }

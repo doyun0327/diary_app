@@ -15,6 +15,21 @@ import 'google_auth_native.dart';
 const kDiaryNativeChannel = 'DiaryNative';
 const kDiaryFilesChannel = MethodChannel('diary/files');
 
+class DiaryAppBarState {
+  const DiaryAppBarState({
+    this.visible = false,
+    this.showCalendar = false,
+    this.label = '',
+  });
+
+  final bool visible;
+  final bool showCalendar;
+  final String label;
+}
+
+final ValueNotifier<DiaryAppBarState> diaryAppBar =
+    ValueNotifier(const DiaryAppBarState());
+
 final GlobalKey<ScaffoldMessengerState> diaryMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
@@ -33,6 +48,14 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     }
     if (type == 'googleSignOut') {
       await nativeGoogleSignOut();
+      return;
+    }
+    if (type == 'headerState') {
+      diaryAppBar.value = DiaryAppBarState(
+        visible: data['visible'] == true,
+        showCalendar: data['showCalendar'] == true,
+        label: (data['label'] as String?)?.trim() ?? '',
+      );
       return;
     }
 
