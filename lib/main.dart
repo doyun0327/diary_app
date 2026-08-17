@@ -11,10 +11,12 @@ import 'native_bridge.dart';
 import 'push_service.dart';
 import 'webview_host.dart';
 
-/// USB ?ã§Í∏∞Í∏∞: `adb reverse tcp:5173 tcp:5173` ?õÑ ?ù¥ Ï£ºÏÜå
-/// ?óêÎÆ¨Î†à?ù¥?Ñ∞: http://10.0.2.2:5173  (?òê?äî ?Ö∏?ä∏Î∂? LAN IP)
-/// Î∞∞Ìè¨Î≥?: Cloudflare URL
+/// USB ?????: `adb reverse tcp:5173 tcp:5173` ??? ??? ??
+/// ???????????: http://10.0.2.2:5173  (?????? ???????? LAN IP)
+/// ????: Cloudflare URL
 const String kDiaryWebUrl = 'http://127.0.0.1:5173';
+/// ?? ?? ??(? 2026? 08? ?) ? ??? ???? ??
+const Color kCalendarHeaderColor = Color(0xFF1A1A1A);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -163,6 +165,10 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
           return ValueListenableBuilder<DiaryThemeState>(
             valueListenable: diaryTheme,
             builder: (context, theme, _) {
+              final centeredHeader = header.showSave ||
+                  (header.showBack &&
+                      !header.showMenu &&
+                      !header.showCalendar);
               return Scaffold(
                 backgroundColor: theme.background,
                 appBar: header.visible
@@ -174,72 +180,176 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                         elevation: 0,
                         scrolledUnderElevation: 0,
                         surfaceTintColor: Colors.transparent,
-                        centerTitle: false,
-                        titleSpacing: 4,
+                        centerTitle: centeredHeader,
+                        titleSpacing: centeredHeader ? 0 : 4,
+                        leading: centeredHeader
+                            ? IconButton(
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                onPressed: () =>
+                                    unawaited(_runHeaderAction('back')),
+                                icon: Icon(
+                                  Icons.chevron_left,
+                                  color: theme.accent,
+                                  size: 26,
+                                ),
+                              )
+                            : null,
+                        leadingWidth: centeredHeader ? 44 : null,
                         shape: Border(
                           bottom: BorderSide(
                             color: theme.accent.withOpacity(0.12),
                           ),
                         ),
-                        title: header.showCalendar
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 36,
-                                      minHeight: 40,
-                                    ),
-                                    onPressed: () =>
-                                        unawaited(_runHeaderAction('prevMonth')),
-                                    icon: Icon(Icons.chevron_left, color: theme.accent),
-                                  ),
-                                  TextButton(
+                        title: header.showSave || centeredHeader
+                            ? Text(
+                                header.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.accent,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.2,
+                                ),
+                              )
+                            : header.showBack
+                                ? TextButton(
                                     style: TextButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 2,
+                                        horizontal: 4,
                                       ),
                                       minimumSize: Size.zero,
                                       tapTargetSize:
                                           MaterialTapTargetSize.shrinkWrap,
                                     ),
                                     onPressed: () => unawaited(
-                                      _runHeaderAction('openMonthPicker'),
+                                      _runHeaderAction('back'),
                                     ),
-                                    child: Text(
-                                      header.label,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: theme.accent,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -0.2,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.chevron_left,
+                                          color: theme.accent,
+                                          size: 26,
+                                        ),
+                                        Flexible(
+                                          child: Text(
+                                            header.label,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: theme.accent,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: -0.2,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : header.showCalendar
+                                    ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 36,
+                                          minHeight: 40,
+                                        ),
+                                        onPressed: () => unawaited(
+                                          _runHeaderAction('prevMonth'),
+                                        ),
+                                        icon: Icon(
+                                          Icons.chevron_left,
+                                          color: kCalendarHeaderColor,
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 36,
-                                      minHeight: 40,
-                                    ),
-                                    onPressed: () =>
-                                        unawaited(_runHeaderAction('nextMonth')),
-                                    icon: Icon(Icons.chevron_right, color: theme.accent),
-                                  ),
-                                ],
-                              )
-                            : null,
+                                      TextButton(
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 2,
+                                          ),
+                                          minimumSize: Size.zero,
+                                          tapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onPressed: () => unawaited(
+                                          _runHeaderAction('openMonthPicker'),
+                                        ),
+                                        child: Text(
+                                          header.label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: kCalendarHeaderColor,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: -0.2,
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 36,
+                                          minHeight: 40,
+                                        ),
+                                        onPressed: () => unawaited(
+                                          _runHeaderAction('nextMonth'),
+                                        ),
+                                        icon: Icon(
+                                          Icons.chevron_right,
+                                          color: kCalendarHeaderColor,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : null,
                         actions: [
-                          IconButton(
-                            onPressed: () =>
-                                unawaited(_runHeaderAction('openMenu')),
-                            icon: Icon(Icons.menu, color: theme.accent),
-                          ),
+                          if (header.showSave)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: TextButton(
+                                onPressed: header.saveEnabled
+                                    ? () => unawaited(
+                                          _runHeaderAction('save'),
+                                        )
+                                    : null,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: Text(
+                                  header.saveLabel.isNotEmpty
+                                      ? header.saveLabel
+                                      : 'Save',
+                                  style: TextStyle(
+                                    color: header.saveEnabled
+                                        ? theme.accent
+                                        : theme.accent.withOpacity(0.38),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (header.showMenu)
+                            IconButton(
+                              onPressed: () => unawaited(
+                                _runHeaderAction('openMenu'),
+                              ),
+                              icon: Icon(Icons.menu, color: theme.accent),
+                            ),
                         ],
                       )
                     : null,

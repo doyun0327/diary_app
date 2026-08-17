@@ -19,12 +19,22 @@ class DiaryAppBarState {
   const DiaryAppBarState({
     this.visible = false,
     this.showCalendar = false,
+    this.showBack = false,
+    this.showSave = false,
+    this.showMenu = true,
     this.label = '',
+    this.saveLabel = '',
+    this.saveEnabled = true,
   });
 
   final bool visible;
   final bool showCalendar;
+  final bool showBack;
+  final bool showSave;
+  final bool showMenu;
   final String label;
+  final String saveLabel;
+  final bool saveEnabled;
 }
 
 final ValueNotifier<DiaryAppBarState> diaryAppBar =
@@ -54,7 +64,12 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       diaryAppBar.value = DiaryAppBarState(
         visible: data['visible'] == true,
         showCalendar: data['showCalendar'] == true,
+        showBack: data['showBack'] == true,
+        showSave: data['showSave'] == true,
+        showMenu: data['showMenu'] != false,
         label: (data['label'] as String?)?.trim() ?? '',
+        saveLabel: (data['saveLabel'] as String?)?.trim() ?? '',
+        saveEnabled: data['saveEnabled'] != false,
       );
       return;
     }
@@ -191,7 +206,7 @@ Future<void> openSavedFile(String uri, String mime) async {
     });
   } catch (e) {
     debugPrint('openSavedFile failed: $e');
-    _snack('?åå?ùº?ùÑ ?ó¥ ?àò ?óÜ?ñ¥?öî.');
+    _snack('????????? ??? ??? ?????????.');
   }
 }
 
