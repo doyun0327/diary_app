@@ -58,6 +58,21 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       );
       return;
     }
+    if (type == 'theme') {
+      final themeId = (data['themeId'] as String?)?.trim() ?? 'paper';
+      final accentHex = (data['accent'] as String?)?.trim() ?? '#2A2A2A';
+      final backgroundHex = (data['background'] as String?)?.trim() ?? '#FFFFFF';
+      try {
+        diaryTheme.value = DiaryThemeState(
+          themeId: themeId,
+          accent: _hexToColor(accentHex),
+          background: _hexToColor(backgroundHex),
+        );
+      } catch (_) {
+        diaryTheme.value = DiaryThemeState(themeId: themeId);
+      }
+      return;
+    }
 
     final title = (data['title'] as String?)?.trim() ?? '';
     final text = (data['text'] as String?)?.trim() ?? '';
@@ -176,7 +191,7 @@ Future<void> openSavedFile(String uri, String mime) async {
     });
   } catch (e) {
     debugPrint('openSavedFile failed: $e');
-    _snack('ÌååÏùºÏùÑ Ïó¥ Ïàò ÏóÜÏñ¥Ïöî.');
+    _snack('?åå?ùº?ùÑ ?ó¥ ?àò ?óÜ?ñ¥?öî.');
   }
 }
 
@@ -205,4 +220,33 @@ void _snack(String message) {
   diaryMessengerKey.currentState?.showSnackBar(
     SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
   );
+}
+
+class DiaryThemeState {
+  const DiaryThemeState({
+    this.themeId = 'paper',
+    this.accent = const Color(0xFF2A2A2A),
+    this.background = const Color(0xFFFFFFFF),
+  });
+
+  final String themeId;
+  final Color accent;
+  final Color background;
+}
+
+final ValueNotifier<DiaryThemeState> diaryTheme =
+    ValueNotifier(const DiaryThemeState());
+
+Color _hexToColor(String value) {
+  final hex = value.trim();
+  if (hex.startsWith('#')) {
+    final body = hex.substring(1);
+    final normalized = body.length == 3
+        ? body.split('').expand((c) => [c, c]).join()
+        : body;
+    final parsed = int.tryParse(normalized, radix: 16);
+    if (parsed == null) return const Color(0xFF2A2A2A);
+    return Color((0xFF000000 | parsed));
+  }
+  return const Color(0xFF2A2A2A);
 }
