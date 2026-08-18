@@ -11,7 +11,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'google_auth_native.dart';
+import 'rewarded_ad_service.dart';
 import 'subscription_service.dart';
+import 'webview_host.dart';
 
 const kDiaryNativeChannel = 'DiaryNative';
 const kDiaryFilesChannel = MethodChannel('diary/files');
@@ -101,6 +103,15 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       } catch (e, st) {
         debugPrint('subscription restore failed: $e\n$st');
         _snack('?? ??? ?????.');
+      }
+      return;
+    }
+    if (type == 'rewardedAdShow') {
+      final reason = (data['reason'] as String?)?.trim() ?? 'aiDraw';
+      final ok = await RewardedAdService.instance.showForAiDraw();
+      await WebViewHost.instance.dispatchRewardedAdResult(ok: ok, reason: reason);
+      if (!ok) {
+        _snack('광고를 끝까지 봐야 AI 그림을 받을 수 있어요.');
       }
       return;
     }

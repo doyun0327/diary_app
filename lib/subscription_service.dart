@@ -13,6 +13,7 @@ class SubscriptionService {
   static final SubscriptionService instance = SubscriptionService._();
 
   var _configured = false;
+  final ValueNotifier<bool> activeNotifier = ValueNotifier(false);
 
   Future<void> init() async {
     if (_configured) return;
@@ -116,6 +117,7 @@ class SubscriptionService {
     final entitlement =
         info.entitlements.all[SubscriptionConfig.entitlementId];
     final active = entitlement?.isActive == true;
+    activeNotifier.value = active;
     int? expiresAtMs;
     final expiration = entitlement?.expirationDate;
     if (expiration != null) {
@@ -133,6 +135,7 @@ class SubscriptionService {
     required int? expiresAtMs,
     String? productId,
   }) async {
+    activeNotifier.value = active;
     await WebViewHost.instance.dispatchSubscriptionStatus(
       active: active,
       expiresAtMs: expiresAtMs,

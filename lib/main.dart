@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'file_chooser.dart';
@@ -9,6 +11,7 @@ import 'google_auth_native.dart';
 import 'google_sign_in_screen.dart';
 import 'native_bridge.dart';
 import 'push_service.dart';
+import 'rewarded_ad_service.dart';
 import 'subscription_service.dart';
 import 'webview_host.dart';
 
@@ -23,6 +26,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initDiaryPush();
   await SubscriptionService.instance.init();
+  await RewardedAdService.instance.init();
   runApp(const DiaryApp());
 }
 
@@ -56,11 +60,23 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   var _loading = true;
   var _openingGoogle = false;
   var _edgeDragDx = 0.0;
+  BannerAd? _bannerAd;
+  bool _bannerLoaded = false;
+
+  static const _androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
+
+  String? _bannerUnitId() {
+    const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
+    if (fromDefine.isNotEmpty) return fromDefine;
+    if (!kReleaseMode) return _androidTestBannerId;
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
     googleSignInRequests.addListener(_onGoogleSignInRequested);
+    SubscriptionService.instance.activeNotifier.addListener(_onSubscriptionChanged);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
@@ -86,12 +102,60 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       ..loadRequest(Uri.parse(kDiaryWebUrl));
     WebViewHost.instance.controller = _controller;
     attachAndroidFileChooser(_controller);
+    _onSubscriptionChanged();
   }
 
   @override
   void dispose() {
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
+    SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
+    _disposeBanner();
     super.dispose();
+  }
+
+  void _onSubscriptionChanged() {
+    final active = SubscriptionService.instance.activeNotifier.value;
+    if (active) {
+      _disposeBanner();
+      return;
+    }
+    _ensureBanner();
+  }
+
+  void _disposeBanner() {
+    _bannerAd?.dispose();
+    _bannerAd = null;
+    if (_bannerLoaded && mounted) {
+      setState(() => _bannerLoaded = false);
+    } else {
+      _bannerLoaded = false;
+    }
+  }
+
+  void _ensureBanner() {
+    if (_bannerAd != null) return;
+    final unitId = _bannerUnitId();
+    if (unitId == null || unitId.isEmpty) return;
+
+    final ad = BannerAd(
+      size: AdSize.banner,
+      adUnitId: unitId,
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) return;
+          setState(() => _bannerLoaded = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          _bannerAd = null;
+          if (!mounted) return;
+          setState(() => _bannerLoaded = false);
+        },
+      ),
+      request: const AdRequest(),
+    );
+    _bannerAd = ad;
+    unawaited(ad.load());
   }
 
   void _onGoogleSignInRequested() {
@@ -358,30 +422,44 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                     : null,
                 body: SafeArea(
                   top: !header.visible,
-                  child: Stack(
+                  child: Column(
                     children: [
-                      WebViewWidget(controller: _controller),
-                      Positioned(
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        width: 28,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.translucent,
-                          onHorizontalDragStart: (_) => _edgeDragDx = 0,
-                          onHorizontalDragUpdate: (details) {
-                            _edgeDragDx += details.delta.dx;
-                          },
-                          onHorizontalDragEnd: (details) {
-                            final velocity = details.primaryVelocity ?? 0;
-                            if (velocity > 180 || _edgeDragDx > 40) {
-                              unawaited(_goBackInWeb());
-                            }
-                          },
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            WebViewWidget(controller: _controller),
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: 28,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onHorizontalDragStart: (_) => _edgeDragDx = 0,
+                                onHorizontalDragUpdate: (details) {
+                                  _edgeDragDx += details.delta.dx;
+                                },
+                                onHorizontalDragEnd: (details) {
+                                  final velocity = details.primaryVelocity ?? 0;
+                                  if (velocity > 180 || _edgeDragDx > 40) {
+                                    unawaited(_goBackInWeb());
+                                  }
+                                },
+                              ),
+                            ),
+                            if (_loading)
+                              const Center(child: CircularProgressIndicator()),
+                          ],
                         ),
                       ),
-                      if (_loading)
-                        const Center(child: CircularProgressIndicator()),
+                      if (!SubscriptionService.instance.activeNotifier.value &&
+                          _bannerLoaded &&
+                          _bannerAd != null)
+                        SizedBox(
+                          height: _bannerAd!.size.height.toDouble(),
+                          width: _bannerAd!.size.width.toDouble(),
+                          child: AdWidget(ad: _bannerAd!),
+                        ),
                     ],
                   ),
                 ),

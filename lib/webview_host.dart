@@ -56,4 +56,21 @@ class WebViewHost {
       window.dispatchEvent(new CustomEvent('diary-subscription-status', { detail: $payload }));
     ''');
   }
+
+  Future<void> dispatchRewardedAdResult({
+    required bool ok,
+    String reason = 'aiDraw',
+  }) async {
+    final payload = jsonEncode({
+      'ok': ok,
+      'reason': reason,
+    });
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryRewardedAd === 'function') {
+        window.__onDiaryRewardedAd($payload);
+      }
+      window.dispatchEvent(new CustomEvent('diary-rewarded-ad-result', { detail: $payload }));
+    ''');
+  }
 }
