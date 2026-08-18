@@ -37,4 +37,23 @@ class WebViewHost {
       }
     ''');
   }
+
+  Future<void> dispatchSubscriptionStatus({
+    required bool active,
+    int? expiresAtMs,
+    String? productId,
+  }) async {
+    final payload = jsonEncode({
+      'active': active,
+      'expiresAt': expiresAtMs,
+      'productId': productId,
+    });
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiarySubscriptionStatus === 'function') {
+        window.__onDiarySubscriptionStatus($payload);
+      }
+      window.dispatchEvent(new CustomEvent('diary-subscription-status', { detail: $payload }));
+    ''');
+  }
 }

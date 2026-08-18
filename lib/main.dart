@@ -9,6 +9,7 @@ import 'google_auth_native.dart';
 import 'google_sign_in_screen.dart';
 import 'native_bridge.dart';
 import 'push_service.dart';
+import 'subscription_service.dart';
 import 'webview_host.dart';
 
 /// USB ?????: `adb reverse tcp:5173 tcp:5173` ??? ??? ??
@@ -21,6 +22,7 @@ const Color kCalendarHeaderColor = Color(0xFF1A1A1A);
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initDiaryPush();
+  await SubscriptionService.instance.init();
   runApp(const DiaryApp());
 }
 
@@ -74,6 +76,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
             diaryPush.controller = _controller;
             diaryPush.flushPending();
             WebViewHost.instance.markFlutter();
+            unawaited(SubscriptionService.instance.syncToWeb());
           },
           onWebResourceError: (error) {
             debugPrint('WebView error: ${error.description}');

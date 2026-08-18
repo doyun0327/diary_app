@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'google_auth_native.dart';
+import 'subscription_service.dart';
 
 const kDiaryNativeChannel = 'DiaryNative';
 const kDiaryFilesChannel = MethodChannel('diary/files');
@@ -71,6 +72,36 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         saveLabel: (data['saveLabel'] as String?)?.trim() ?? '',
         saveEnabled: data['saveEnabled'] != false,
       );
+      return;
+    }
+    if (type == 'subscriptionIdentify') {
+      final userId = (data['userId'] as String?)?.trim() ?? '';
+      if (userId.isNotEmpty) {
+        await SubscriptionService.instance.identify(userId);
+      }
+      return;
+    }
+    if (type == 'subscriptionSync') {
+      await SubscriptionService.instance.syncToWeb();
+      return;
+    }
+    if (type == 'subscriptionPurchase') {
+      try {
+        await SubscriptionService.instance.purchaseMonthly();
+      } catch (e, st) {
+        debugPrint('subscription purchase failed: $e\n$st');
+        _snack('?? ??? ?????. ?? ? ?? ??? ???.');
+      }
+      return;
+    }
+    if (type == 'subscriptionRestore') {
+      try {
+        await SubscriptionService.instance.restore();
+        _snack('?? ??? ?????.');
+      } catch (e, st) {
+        debugPrint('subscription restore failed: $e\n$st');
+        _snack('?? ??? ?????.');
+      }
       return;
     }
     if (type == 'theme') {
