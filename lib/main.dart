@@ -410,13 +410,22 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                                 ),
                               ),
                             )
-                          else if (header.showMenu)
-                            IconButton(
-                              onPressed: () => unawaited(
-                                _runHeaderAction('openMenu'),
+                          else ...[
+                            if (header.showSearch)
+                              IconButton(
+                                onPressed: () => unawaited(
+                                  _runHeaderAction('openSearch'),
+                                ),
+                                icon: Icon(Icons.search, color: theme.accent),
                               ),
-                              icon: Icon(Icons.menu, color: theme.accent),
-                            ),
+                            if (header.showMenu)
+                              IconButton(
+                                onPressed: () => unawaited(
+                                  _runHeaderAction('openMenu'),
+                                ),
+                                icon: Icon(Icons.menu, color: theme.accent),
+                              ),
+                          ],
                         ],
                       )
                     : null,

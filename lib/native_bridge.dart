@@ -25,6 +25,7 @@ class DiaryAppBarState {
     this.showBack = false,
     this.showSave = false,
     this.showMenu = true,
+    this.showSearch = false,
     this.label = '',
     this.saveLabel = '',
     this.saveEnabled = true,
@@ -35,6 +36,7 @@ class DiaryAppBarState {
   final bool showBack;
   final bool showSave;
   final bool showMenu;
+  final bool showSearch;
   final String label;
   final String saveLabel;
   final bool saveEnabled;
@@ -70,6 +72,7 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         showBack: data['showBack'] == true,
         showSave: data['showSave'] == true,
         showMenu: data['showMenu'] != false,
+        showSearch: data['showSearch'] == true,
         label: (data['label'] as String?)?.trim() ?? '',
         saveLabel: (data['saveLabel'] as String?)?.trim() ?? '',
         saveEnabled: data['saveEnabled'] != false,
