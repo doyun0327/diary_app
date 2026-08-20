@@ -15,11 +15,21 @@ import 'rewarded_ad_service.dart';
 import 'subscription_service.dart';
 import 'webview_host.dart';
 
-/// USB ?????: `adb reverse tcp:5173 tcp:5173` ??? ??? ??
-/// ???????????: http://10.0.2.2:5173  (?????? ???????? LAN IP)
-/// ????: Cloudflare URL
-const String kDiaryWebUrl = 'http://127.0.0.1:5173';
-/// ?? ?? ??(? 2026? 08? ?) ? ??? ???? ??
+/// 로컬 개발: `npm run dev` + `adb reverse tcp:5173 tcp:5173`
+/// 에뮬레이터: http://10.0.2.2:5173
+/// 배포 앱: Cloudflare Workers URL (아래 prod) 또는
+///   flutter build appbundle --dart-define=DIARY_WEB_URL=https://...
+const String _kDiaryWebUrlDev = 'http://127.0.0.1:5173';
+/// `npm run deploy` 후 나온 workers.dev / 커스텀 도메인 (끝 `/` 없이)
+const String _kDiaryWebUrlProd = 'https://pageby-diary.idoyun781.workers.dev';
+
+String get kDiaryWebUrl {
+  const fromDefine = String.fromEnvironment('DIARY_WEB_URL');
+  if (fromDefine.isNotEmpty) return fromDefine;
+  if (kReleaseMode && _kDiaryWebUrlProd.isNotEmpty) return _kDiaryWebUrlProd;
+  return _kDiaryWebUrlDev;
+}
+
 const Color kCalendarHeaderColor = Color(0xFF1A1A1A);
 
 Future<void> main() async {
@@ -63,12 +73,17 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
 
+  /// Google 샘플 테스트 배너 (디버그 전용)
   static const _androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
+  /// AdMob 콘솔에서 만든 실제 배너 단위 ID를 넣으세요. (앱: ca-app-pub-4752729386590212~2783667278)
+  /// 비어 있으면 릴리스에서 배너가 표시되지 않습니다.
+  static const _androidProdBannerId = 'ca-app-pub-4752729386590212/5989921712';
 
   String? _bannerUnitId() {
     const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
     if (fromDefine.isNotEmpty) return fromDefine;
     if (!kReleaseMode) return _androidTestBannerId;
+    if (_androidProdBannerId.isNotEmpty) return _androidProdBannerId;
     return null;
   }
 
