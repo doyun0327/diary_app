@@ -6,7 +6,7 @@ class SubscriptionConfig {
   /// `--dart-define=REVENUECAT_GOOGLE_KEY=goog_...` 로 덮어쓸 수 있음
   static const googleApiKey = String.fromEnvironment(
     'REVENUECAT_GOOGLE_KEY',
-    defaultValue: 'goog_REPLACE_ME',
+    defaultValue: 'goog_mFwrKRFoWrokuNCgJcnROmjTMlb',
   );
 
   /// RevenueCat Public API Key (App Store 앱)

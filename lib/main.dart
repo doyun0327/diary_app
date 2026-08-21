@@ -34,10 +34,27 @@ const Color kCalendarHeaderColor = Color(0xFF1A1A1A);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initDiaryPush();
-  await SubscriptionService.instance.init();
-  await RewardedAdService.instance.init();
+  // 플러그인 초기화 실패/지연으로 아이콘만 깜빡이고 종료되지 않게 먼저 UI를 띄움
   runApp(const DiaryApp());
+  unawaited(_initPlugins());
+}
+
+Future<void> _initPlugins() async {
+  try {
+    await initDiaryPush();
+  } catch (e, st) {
+    debugPrint('[main] push init failed: $e\n$st');
+  }
+  try {
+    await SubscriptionService.instance.init();
+  } catch (e, st) {
+    debugPrint('[main] subscription init failed: $e\n$st');
+  }
+  try {
+    await RewardedAdService.instance.init();
+  } catch (e, st) {
+    debugPrint('[main] ads init failed: $e\n$st');
+  }
 }
 
 class DiaryApp extends StatelessWidget {
@@ -79,6 +96,11 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   /// 비어 있으면 릴리스에서 배너가 표시되지 않습니다.
   static const _androidProdBannerId = 'ca-app-pub-4752729386590212/5989921712';
 
+  String? _bannerUnitId() {
+    const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
+    if (fromDefine.isNotEmpty) return fromDefine;
+    if (!kReleaseMode) return _androidTestBannerId;
+    if (_androidProdBannerId.isNotEmpty) return _androidProdBannerId;
   String? _bannerUnitId() {
     const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
     if (fromDefine.isNotEmpty) return fromDefine;
@@ -288,8 +310,8 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                                 header.label,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: theme.accent,
+                                style: const TextStyle(
+                                  color: kCalendarHeaderColor,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: -0.2,
@@ -321,8 +343,8 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                                             header.label,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: theme.accent,
+                                            style: const TextStyle(
+                                              color: kCalendarHeaderColor,
                                               fontSize: 18,
                                               fontWeight: FontWeight.w700,
                                               letterSpacing: -0.2,

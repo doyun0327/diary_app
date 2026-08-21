@@ -33,16 +33,24 @@ class SubscriptionService {
 
     await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.warn);
     final config = PurchasesConfiguration(apiKey);
-    await Purchases.configure(config);
-    _configured = true;
+    try {
+      await Purchases.configure(config);
+      _configured = true;
+    } catch (e, st) {
+      debugPrint('[subscription] configure failed: $e\n$st');
+      return;
+    }
 
     Purchases.addCustomerInfoUpdateListener((info) {
       unawaited(_pushStatus(info));
     });
 
-    final info = await Purchases.getCustomerInfo();
-    await _pushStatus(info);
-  }
+    try {
+      final info = await Purchases.getCustomerInfo();
+      await _pushStatus(info);
+    } catch (e, st) {
+      debugPrint('[subscription] getCustomerInfo failed: $e\n$st');
+    }
 
   Future<void> identify(String userId) async {
     if (!_configured || userId.trim().isEmpty) return;

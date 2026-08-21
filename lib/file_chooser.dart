@@ -19,9 +19,9 @@ Future<List<String>> _pickFiles(FileSelectorParams params) async {
       type: imagesOnly ? FileType.image : FileType.any,
       allowMultiple: params.mode == FileSelectorMode.openMultiple,
     );
-    if (result == null) return const [];
+    if (result == null || result.isEmpty) return const [];
     return [
-      for (final file in result.files)
+      for (final file in result)
         if (file.path != null && file.path!.isNotEmpty)
           Uri.file(file.path!).toString(),
     ];
