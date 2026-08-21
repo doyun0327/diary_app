@@ -100,5 +100,4 @@
             <data android:mimeType="application/pdf" />
         </intent>
     </queries>
-    </queries>
 </manifest>
