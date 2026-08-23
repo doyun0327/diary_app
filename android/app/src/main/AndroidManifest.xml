@@ -14,7 +14,7 @@
 
     <application
         android:label="pageBy"
-        android:name="${applicationName}"
+        android:name=".DiaryApplication"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         <activity

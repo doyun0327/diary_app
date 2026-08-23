@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 class RewardedAdService {
@@ -9,6 +10,11 @@ class RewardedAdService {
 
   RewardedAd? _ad;
   bool _loading = false;
+  bool _ready = false;
+
+  /// MobileAds 초기화 완료 여부 (배너는 이 이후에만 로드)
+  bool get isReady => _ready;
+  final ValueNotifier<bool> readyNotifier = ValueNotifier(false);
 
   static const _androidTestRewardedId = 'ca-app-pub-3940256099942544/5224354917';
   static const _androidProdRewardedId = 'ca-app-pub-4752729386590212/8307456691';
@@ -20,8 +26,16 @@ class RewardedAdService {
   }
 
   Future<void> init() async {
-    await MobileAds.instance.initialize();
-    unawaited(_preload());
+    try {
+      await MobileAds.instance.initialize();
+      _ready = true;
+      readyNotifier.value = true;
+      unawaited(_preload());
+    } catch (e, st) {
+      debugPrint('[ads] MobileAds.initialize failed: $e\n$st');
+      _ready = false;
+      readyNotifier.value = false;
+    }
   }
 
   Future<void> _preload() async {

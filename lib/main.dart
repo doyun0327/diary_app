@@ -40,20 +40,23 @@ Future<void> main() async {
 }
 
 Future<void> _initPlugins() async {
+  // Ads first: banner must not load before MobileAds.initialize.
   try {
-    await initDiaryPush();
+    await RewardedAdService.instance.init();
   } catch (e, st) {
-    debugPrint('[main] push init failed: $e\n$st');
+    debugPrint('[main] ads init failed: $e\n$st');
   }
   try {
     await SubscriptionService.instance.init();
   } catch (e, st) {
     debugPrint('[main] subscription init failed: $e\n$st');
   }
+  // Push after first frames so notification permission dialog is safe.
   try {
-    await RewardedAdService.instance.init();
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await initDiaryPush();
   } catch (e, st) {
-    debugPrint('[main] ads init failed: $e\n$st');
+    debugPrint('[main] push init failed: $e\n$st');
   }
 }
 
@@ -101,11 +104,6 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     if (fromDefine.isNotEmpty) return fromDefine;
     if (!kReleaseMode) return _androidTestBannerId;
     if (_androidProdBannerId.isNotEmpty) return _androidProdBannerId;
-  String? _bannerUnitId() {
-    const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
-    if (fromDefine.isNotEmpty) return fromDefine;
-    if (!kReleaseMode) return _androidTestBannerId;
-    if (_androidProdBannerId.isNotEmpty) return _androidProdBannerId;
     return null;
   }
 
@@ -114,6 +112,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     super.initState();
     googleSignInRequests.addListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.addListener(_onSubscriptionChanged);
+    RewardedAdService.instance.readyNotifier.addListener(_onSubscriptionChanged);
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel(
@@ -146,6 +145,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   void dispose() {
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
+    RewardedAdService.instance.readyNotifier.removeListener(_onSubscriptionChanged);
     _disposeBanner();
     super.dispose();
   }
@@ -171,28 +171,34 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
 
   void _ensureBanner() {
     if (_bannerAd != null) return;
+    if (!RewardedAdService.instance.isReady) return;
     final unitId = _bannerUnitId();
     if (unitId == null || unitId.isEmpty) return;
 
-    final ad = BannerAd(
-      size: AdSize.banner,
-      adUnitId: unitId,
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {
-          if (!mounted) return;
-          setState(() => _bannerLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          _bannerAd = null;
-          if (!mounted) return;
-          setState(() => _bannerLoaded = false);
-        },
-      ),
-      request: const AdRequest(),
-    );
-    _bannerAd = ad;
-    unawaited(ad.load());
+    try {
+      final ad = BannerAd(
+        size: AdSize.banner,
+        adUnitId: unitId,
+        listener: BannerAdListener(
+          onAdLoaded: (ad) {
+            if (!mounted) return;
+            setState(() => _bannerLoaded = true);
+          },
+          onAdFailedToLoad: (ad, error) {
+            ad.dispose();
+            _bannerAd = null;
+            if (!mounted) return;
+            setState(() => _bannerLoaded = false);
+          },
+        ),
+        request: const AdRequest(),
+      );
+      _bannerAd = ad;
+      unawaited(ad.load());
+    } catch (e, st) {
+      debugPrint('[ads] banner create failed: $e\n$st');
+      _bannerAd = null;
+    }
   }
 
   void _onGoogleSignInRequested() {

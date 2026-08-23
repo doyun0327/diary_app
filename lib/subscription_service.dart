@@ -51,6 +51,7 @@ class SubscriptionService {
     } catch (e, st) {
       debugPrint('[subscription] getCustomerInfo failed: $e\n$st');
     }
+  }
 
   Future<void> identify(String userId) async {
     if (!_configured || userId.trim().isEmpty) return;
