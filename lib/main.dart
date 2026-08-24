@@ -7,6 +7,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'file_chooser.dart';
+import 'banner_install_gate.dart';
 import 'google_auth_native.dart';
 import 'google_sign_in_screen.dart';
 import 'native_bridge.dart';
@@ -40,6 +41,12 @@ Future<void> main() async {
 }
 
 Future<void> _initPlugins() async {
+  // 첫 실행 시각 기록 (배너 7일 유예)
+  try {
+    await ensureFirstOpenAt();
+  } catch (e, st) {
+    debugPrint('[main] first-open init failed: $e\n$st');
+  }
   // Ads first: banner must not load before MobileAds.initialize.
   try {
     await RewardedAdService.instance.init();
@@ -92,6 +99,8 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   var _edgeDragDx = 0.0;
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
+  bool _bannerGraceElapsed = false;
+  Timer? _bannerGraceTimer;
 
   /// Google 샘플 테스트 배너 (디버그 전용)
   static const _androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
@@ -138,7 +147,27 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       ..loadRequest(Uri.parse(kDiaryWebUrl));
     WebViewHost.instance.controller = _controller;
     attachAndroidFileChooser(_controller);
-    _onSubscriptionChanged();
+    unawaited(_initBannerGrace());
+  }
+
+  Future<void> _initBannerGrace() async {
+    try {
+      _bannerGraceElapsed = await isBannerGraceElapsed();
+      if (!_bannerGraceElapsed) {
+        final remaining = await bannerGraceRemaining();
+        if (remaining != null) {
+          _bannerGraceTimer?.cancel();
+          _bannerGraceTimer = Timer(remaining, () {
+            _bannerGraceElapsed = true;
+            if (mounted) _onSubscriptionChanged();
+          });
+        }
+      }
+    } catch (e, st) {
+      debugPrint('[ads] banner grace check failed: $e\n$st');
+      _bannerGraceElapsed = false;
+    }
+    if (mounted) _onSubscriptionChanged();
   }
 
   @override
@@ -146,13 +175,14 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
     RewardedAdService.instance.readyNotifier.removeListener(_onSubscriptionChanged);
+    _bannerGraceTimer?.cancel();
     _disposeBanner();
     super.dispose();
   }
 
   void _onSubscriptionChanged() {
     final active = SubscriptionService.instance.activeNotifier.value;
-    if (active) {
+    if (active || !_bannerGraceElapsed) {
       _disposeBanner();
       return;
     }
@@ -170,6 +200,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   }
 
   void _ensureBanner() {
+    if (!_bannerGraceElapsed) return;
     if (_bannerAd != null) return;
     if (!RewardedAdService.instance.isReady) return;
     final unitId = _bannerUnitId();
