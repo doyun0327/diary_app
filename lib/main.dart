@@ -472,8 +472,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                         ],
                       )
                     : null,
+                // AppBar 숨김 시에도 top SafeArea를 두지 않음 → 웹 헤더가 상태바까지 덮음
                 body: SafeArea(
-                  top: !header.visible,
+                  top: false,
                   child: Column(
                     children: [
                       Expanded(
