@@ -18,6 +18,17 @@ class WebViewHost {
     await runJs('''
       window.__DIARY_FLUTTER__ = true;
       window.dispatchEvent(new Event('diary-flutter-ready'));
+      if (window.__diaryHideNativeChrome === true && window.DiaryNative) {
+        window.DiaryNative.postMessage(JSON.stringify({
+          type: 'headerState',
+          visible: false,
+          showCalendar: false,
+          showBack: false,
+          showSave: false,
+          showMenu: false,
+          showSearch: false
+        }));
+      }
     ''');
   }
 

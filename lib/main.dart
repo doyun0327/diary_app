@@ -5,10 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'file_chooser.dart';
-import 'banner_install_gate.dart';
 import 'google_auth_native.dart';
 import 'google_sign_in_screen.dart';
 import 'native_bridge.dart';
@@ -27,40 +25,21 @@ const String _kDiaryWebUrlProd = 'https://pageby-diary.idoyun781.workers.dev';
 
 String get kDiaryWebUrl {
   const fromDefine = String.fromEnvironment('DIARY_WEB_URL');
-  final base = fromDefine.isNotEmpty
-      ? fromDefine
-      : (kReleaseMode && _kDiaryWebUrlProd.isNotEmpty)
-          ? _kDiaryWebUrlProd
-          : _kDiaryWebUrlDev;
-  // WebView HTML 캐시로 옛 번들이 남는 것 방지 (배포 시 버전만 올리면 됨)
-  return Uri.parse(base).replace(queryParameters: {
-    ...Uri.parse(base).queryParameters,
-    'v': '20260824c',
-  }).toString();
+  if (fromDefine.isNotEmpty) return fromDefine;
+  if (kReleaseMode && _kDiaryWebUrlProd.isNotEmpty) return _kDiaryWebUrlProd;
+  return _kDiaryWebUrlDev;
 }
 
 const Color kCalendarHeaderColor = Color(0xFF1A1A1A);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Color(0xFFFFFFFF),
-    systemNavigationBarIconBrightness: Brightness.dark,
-    systemNavigationBarContrastEnforced: true,
-  ));
   // 플러그인 초기화 실패/지연으로 아이콘만 깜빡이고 종료되지 않게 먼저 UI를 띄움
   runApp(const DiaryApp());
   unawaited(_initPlugins());
 }
 
 Future<void> _initPlugins() async {
-  // 첫 실행 시각 기록 (배너 7일 유예)
-  try {
-    await ensureFirstOpenAt();
-  } catch (e, st) {
-    debugPrint('[main] first-open init failed: $e\n$st');
-  }
   // Ads first: banner must not load before MobileAds.initialize.
   try {
     await RewardedAdService.instance.init();
@@ -113,8 +92,6 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   var _edgeDragDx = 0.0;
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
-  bool _bannerGraceElapsed = false;
-  Timer? _bannerGraceTimer;
 
   /// Google 샘플 테스트 배너 (디버그 전용)
   static const _androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
@@ -150,58 +127,60 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
             WebViewHost.instance.controller = _controller;
             diaryPush.controller = _controller;
             diaryPush.flushPending();
-            unawaited(WebViewHost.instance.markFlutter());
-            unawaited(SubscriptionService.instance.syncToWeb());
+            unawaited(() async {
+              await WebViewHost.instance.markFlutter();
+              await _syncHeaderFromWeb();
+              if (mounted) await _pushSafeAreaInsets(context);
+              await SubscriptionService.instance.syncToWeb();
+            }());
           },
           onWebResourceError: (error) {
             debugPrint('WebView error: ${error.description}');
           },
         ),
-      );
-    unawaited(_prepareAndLoadWeb());
+      )
+      ..loadRequest(Uri.parse(kDiaryWebUrl));
     WebViewHost.instance.controller = _controller;
     attachAndroidFileChooser(_controller);
-    unawaited(_initBannerGrace());
+    _onSubscriptionChanged();
   }
 
-  Future<void> _prepareAndLoadWeb() async {
+  Future<void> _syncHeaderFromWeb() async {
     try {
-      final platform = _controller.platform;
-      if (platform is AndroidWebViewController) {
-        await platform.setMediaPlaybackRequiresUserGesture(false);
-        // 예전 번들 캐시로 headerState 수정이 안 먹는 문제 완화
-        await platform.clearCache();
+      final raw = await _controller.runJavaScriptReturningResult('''
+        (function(){
+          return window.__diaryHideNativeChrome === true ? 'hide' : 'show';
+        })()
+      ''');
+      final text = raw.toString().replaceAll('"', '').toLowerCase();
+      if (text.contains('hide') && diaryAppBar.value.visible) {
+        diaryAppBar.value = const DiaryAppBarState(
+          visible: false,
+          showMenu: false,
+        );
       }
-    } catch (e, st) {
-      debugPrint('[webview] cache clear failed: $e\n$st');
+    } catch (e) {
+      debugPrint('[header] sync from web failed: $e');
     }
-    await _controller.loadRequest(
-      Uri.parse(kDiaryWebUrl),
-      headers: const {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-      },
-    );
   }
 
-  Future<void> _initBannerGrace() async {
+  /// Android WebView는 env(safe-area-inset-*)가 0인 경우가 많아 Flutter inset을 넘김.
+  Future<void> _pushSafeAreaInsets(BuildContext context) async {
+    final padding = MediaQuery.paddingOf(context);
+    final hideChrome = !diaryAppBar.value.visible;
+    final top = hideChrome ? padding.top : 0.0;
+    final bottom = padding.bottom;
     try {
-      _bannerGraceElapsed = await isBannerGraceElapsed();
-      if (!_bannerGraceElapsed) {
-        final remaining = await bannerGraceRemaining();
-        if (remaining != null) {
-          _bannerGraceTimer?.cancel();
-          _bannerGraceTimer = Timer(remaining, () {
-            _bannerGraceElapsed = true;
-            if (mounted) _onSubscriptionChanged();
-          });
-        }
-      }
-    } catch (e, st) {
-      debugPrint('[ads] banner grace check failed: $e\n$st');
-      _bannerGraceElapsed = false;
+      await _controller.runJavaScript('''
+        (function(){
+          var r = document.documentElement.style;
+          r.setProperty('--diary-safe-top', '${top}px');
+          r.setProperty('--diary-safe-bottom', '${bottom}px');
+        })();
+      ''');
+    } catch (e) {
+      debugPrint('[safe-area] push failed: $e');
     }
-    if (mounted) _onSubscriptionChanged();
   }
 
   @override
@@ -209,14 +188,13 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
     RewardedAdService.instance.readyNotifier.removeListener(_onSubscriptionChanged);
-    _bannerGraceTimer?.cancel();
     _disposeBanner();
     super.dispose();
   }
 
   void _onSubscriptionChanged() {
     final active = SubscriptionService.instance.activeNotifier.value;
-    if (active || !_bannerGraceElapsed) {
+    if (active) {
       _disposeBanner();
       return;
     }
@@ -234,7 +212,6 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   }
 
   void _ensureBanner() {
-    if (!_bannerGraceElapsed) return;
     if (_bannerAd != null) return;
     if (!RewardedAdService.instance.isReady) return;
     final unitId = _bannerUnitId();
@@ -276,6 +253,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
           MaterialPageRoute(builder: (_) => const GoogleSignInScreen()),
         );
         if (result == null || result.isEmpty) {
+          // 화면에서 이미 에러를 웹으로 보냈으면 중복 cancelled 는 무시됨
           await WebViewHost.instance.dispatchGoogleSignInError('cancelled');
         } else {
           await WebViewHost.instance.dispatchGoogleIdToken(result);
@@ -337,6 +315,10 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       child: ValueListenableBuilder<DiaryAppBarState>(
         valueListenable: diaryAppBar,
         builder: (context, header, _) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            unawaited(_pushSafeAreaInsets(context));
+          });
           return ValueListenableBuilder<DiaryThemeState>(
             valueListenable: diaryTheme,
             builder: (context, theme, _) {
@@ -346,6 +328,8 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                       !header.showCalendar);
               return Scaffold(
                 backgroundColor: theme.background,
+                // AppBar 없을 때 상태바 뒤로 콘텐츠가 깔리도록
+                extendBodyBehindAppBar: !header.visible,
                 appBar: header.visible
                     ? AppBar(
                         toolbarHeight: 44,
@@ -537,10 +521,10 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                         ],
                       )
                     : null,
-                // AppBar 숨김 시에도 top SafeArea를 두지 않음 → 웹 헤더가 상태바까지 덮음
+                // AppBar 숨김 화면(친구방·상세)은 웹 툴바가 safe-area를 담당.
+                // top SafeArea를 켜면 빈 앱헤더 자리가 남음.
                 body: SafeArea(
                   top: false,
-                  bottom: true,
                   child: Column(
                     children: [
                       Expanded(

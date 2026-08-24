@@ -30,12 +30,16 @@ String friendlyGoogleError(Object e) {
       text.contains('SIGN_IN_CANCELLED')) {
     return 'cancelled';
   }
+  // 12500은 실기기에서도 SHA-1/OAuth 미등록일 때 자주 남 → 설정 문제로 안내
   if (text.contains('ApiException: 12500') ||
       text.contains('sign_in_failed')) {
-    return 'play_services';
+    return 'developer_error';
   }
   if (text.contains('TimeoutException')) {
     return 'timeout';
+  }
+  if (text.contains('no_id_token')) {
+    return 'no_id_token';
   }
   return text;
 }

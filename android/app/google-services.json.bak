@@ -14,14 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "511504695762-af5fs9gkohufnanqto705rosj7q0qtm0.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.yun.diary_app",
-            "certificate_hash": "2e3da236aaa50ae7d3666f360812ed38ad35a613"
-          }
-        },
-        {
           "client_id": "511504695762-a5ldsnm5evd835k4vkdo02peon5c2b3j.apps.googleusercontent.com",
           "client_type": 3
         }

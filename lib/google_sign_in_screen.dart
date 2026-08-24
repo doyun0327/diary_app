@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'google_auth_native.dart';
+import 'webview_host.dart';
 
 /// WebView 밖에서 Google 계정 선택창을 띄움 (activity result 가 안 씹히게)
 class GoogleSignInScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class GoogleSignInScreen extends StatefulWidget {
 class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
   var _busy = true;
   String? _error;
+  var _errorSentToWeb = false;
 
   @override
   void initState() {
@@ -23,10 +25,17 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
     });
   }
 
+  Future<void> _notifyWebError(String code) async {
+    if (_errorSentToWeb || code == 'cancelled') return;
+    _errorSentToWeb = true;
+    await WebViewHost.instance.dispatchGoogleSignInError(code);
+  }
+
   Future<void> _signIn() async {
     setState(() {
       _busy = true;
       _error = null;
+      _errorSentToWeb = false;
     });
     try {
       final token = await obtainGoogleIdToken();
@@ -34,10 +43,12 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
       Navigator.of(context).pop(token ?? '');
     } catch (e, st) {
       debugPrint('GoogleSignInScreen failed: $e\n$st');
+      final code = friendlyGoogleError(e);
+      await _notifyWebError(code);
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = friendlyGoogleError(e);
+        _error = code;
       });
     }
   }
@@ -45,13 +56,13 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
   String _errorText(String code) {
     switch (code) {
       case 'developer_error':
-        return 'SHA-1이 Google Cloud Android 클라이언트에 없어요.';
+        return 'Play 앱 서명 SHA-1이 Google Cloud\nAndroid 클라이언트에 없어요.\nCloud Console에 추가한 뒤 재설치해 주세요.';
       case 'play_services':
-        return '이 에뮬은 Google Play / 계정이 필요해요.';
+        return 'Google Play 서비스 / 계정 설정을 확인해 주세요.';
       case 'network':
         return '네트워크를 확인해 주세요.';
       case 'no_id_token':
-        return 'Google 토큰을 받지 못했어요. SHA-1을 확인해 주세요.';
+        return 'Google 토큰을 받지 못했어요.\nSHA-1과 Web Client ID를 확인해 주세요.';
       case 'timeout':
         return '계정 창이 안 떴거나 너무 오래 걸렸어요.';
       case 'cancelled':
@@ -85,7 +96,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
                 const CircularProgressIndicator(),
                 const SizedBox(height: 20),
                 const Text(
-                  'Google 계정 창을 띄우는 중…\n에뮬에 구글 계정이 있어야 해요.',
+                  'Google 계정 창을 띄우는 중…',
                   textAlign: TextAlign.center,
                   style: TextStyle(height: 1.45, fontSize: 15),
                 ),
