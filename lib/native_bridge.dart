@@ -66,7 +66,7 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       return;
     }
     if (type == 'headerState') {
-      diaryAppBar.value = DiaryAppBarState(
+      final next = DiaryAppBarState(
         visible: data['visible'] == true,
         showCalendar: data['showCalendar'] == true,
         showBack: data['showBack'] == true,
@@ -77,6 +77,11 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         saveLabel: (data['saveLabel'] as String?)?.trim() ?? '',
         saveEnabled: data['saveEnabled'] != false,
       );
+      debugPrint(
+        '[headerState] visible=${next.visible} back=${next.showBack} '
+        'label="${next.label}"',
+      );
+      diaryAppBar.value = next;
       return;
     }
     if (type == 'subscriptionIdentify') {

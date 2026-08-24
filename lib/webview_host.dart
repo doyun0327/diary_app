@@ -15,7 +15,10 @@ class WebViewHost {
   }
 
   Future<void> markFlutter() async {
-    await runJs('window.__DIARY_FLUTTER__ = true;');
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      window.dispatchEvent(new Event('diary-flutter-ready'));
+    ''');
   }
 
   Future<void> dispatchGoogleIdToken(String idToken) async {
