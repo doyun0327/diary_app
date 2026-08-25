@@ -48,6 +48,8 @@ Future<void> _initPlugins() async {
   }
   try {
     await SubscriptionService.instance.init();
+    // WebView가 먼저 로드돼도 Pro 상태를 다시 맞춤
+    await SubscriptionService.instance.syncToWeb();
   } catch (e, st) {
     debugPrint('[main] subscription init failed: $e\n$st');
   }
@@ -121,7 +123,13 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (_) => setState(() => _loading = true),
+          onPageStarted: (_) {
+            setState(() => _loading = true);
+            // 첫 페인트 전에 Flutter 플래그 → 웹 헤더/AppBar 이중 표시·달력 점프 방지
+            unawaited(_controller.runJavaScript('''
+              window.__DIARY_FLUTTER__ = true;
+            '''));
+          },
           onPageFinished: (_) {
             setState(() => _loading = false);
             WebViewHost.instance.controller = _controller;
@@ -555,13 +563,22 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                           ],
                         ),
                       ),
-                      if (!SubscriptionService.instance.activeNotifier.value &&
-                          _bannerLoaded &&
-                          _bannerAd != null)
+                      // Flutter AppBar 쓰는 화면(홈·쓰기)만 배너 자리 예약.
+                      // 친구방·상세(웹 툴바)에서는 넣지 않음 → 웹/앱 크롬 겹침·이중 배너 방지
+                      if (header.visible &&
+                          !SubscriptionService.instance.activeNotifier.value)
                         SizedBox(
-                          height: _bannerAd!.size.height.toDouble(),
-                          width: _bannerAd!.size.width.toDouble(),
-                          child: AdWidget(ad: _bannerAd!),
+                          height: AdSize.banner.height.toDouble(),
+                          width: double.infinity,
+                          child: _bannerLoaded && _bannerAd != null
+                              ? Center(
+                                  child: SizedBox(
+                                    height: _bannerAd!.size.height.toDouble(),
+                                    width: _bannerAd!.size.width.toDouble(),
+                                    child: AdWidget(ad: _bannerAd!),
+                                  ),
+                                )
+                              : ColoredBox(color: theme.background),
                         ),
                     ],
                   ),

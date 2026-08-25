@@ -64,8 +64,9 @@ class SubscriptionService {
   }
 
   Future<void> syncToWeb() async {
+    // 초기화 전 false 푸시는 웹의 기존 Pro 상태를 지워 버림 → 무시
     if (!_configured) {
-      await _dispatch(active: false, expiresAtMs: null);
+      debugPrint('[subscription] sync skipped (not configured yet)');
       return;
     }
     try {
@@ -109,6 +110,11 @@ class SubscriptionService {
 
     final result = await Purchases.purchase(PurchaseParams.package(package));
     await _pushStatus(result.customerInfo);
+    // 결제 직후 entitlement 반영 지연 대비 한 번 더
+    try {
+      final info = await Purchases.getCustomerInfo();
+      await _pushStatus(info);
+    } catch (_) {}
   }
 
   Future<void> restore() async {
@@ -122,20 +128,53 @@ class SubscriptionService {
     await _pushStatus(info);
   }
 
+  /// entitlement `premium` 뿐 아니라 활성 구독/다른 entitlement도 Pro로 인정
+  bool _isPremium(CustomerInfo info) {
+    final named = info.entitlements.all[SubscriptionConfig.entitlementId];
+    if (named?.isActive == true) return true;
+    if (info.entitlements.active.isNotEmpty) return true;
+    if (info.activeSubscriptions.contains(SubscriptionConfig.productId)) {
+      return true;
+    }
+    for (final id in info.activeSubscriptions) {
+      if (id.contains('pageby') || id.contains('premium')) return true;
+    }
+    return false;
+  }
+
+  EntitlementInfo? _pickEntitlement(CustomerInfo info) {
+    final named = info.entitlements.all[SubscriptionConfig.entitlementId];
+    if (named?.isActive == true) return named;
+    if (info.entitlements.active.isNotEmpty) {
+      return info.entitlements.active.values.first;
+    }
+    return named;
+  }
+
   Future<void> _pushStatus(CustomerInfo info) async {
-    final entitlement =
-        info.entitlements.all[SubscriptionConfig.entitlementId];
-    final active = entitlement?.isActive == true;
+    final active = _isPremium(info);
+    final entitlement = _pickEntitlement(info);
     activeNotifier.value = active;
     int? expiresAtMs;
     final expiration = entitlement?.expirationDate;
     if (expiration != null) {
       expiresAtMs = DateTime.tryParse(expiration)?.millisecondsSinceEpoch;
     }
+    debugPrint(
+      '[subscription] push active=$active '
+      'product=${entitlement?.productIdentifier} '
+      'subs=${info.activeSubscriptions} '
+      'entitlements=${info.entitlements.active.keys.toList()}',
+    );
     await _dispatch(
       active: active,
       expiresAtMs: expiresAtMs,
-      productId: entitlement?.productIdentifier,
+      productId: active
+          ? (entitlement?.productIdentifier ??
+              (info.activeSubscriptions.isNotEmpty
+                  ? info.activeSubscriptions.first
+                  : null))
+          : null,
     );
   }
 

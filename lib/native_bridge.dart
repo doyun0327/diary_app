@@ -66,13 +66,12 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       return;
     }
     if (type == 'headerState') {
-      final hideChrome = data['visible'] != true;
       final next = DiaryAppBarState(
-        visible: !hideChrome,
+        visible: data['visible'] == true,
         showCalendar: data['showCalendar'] == true,
         showBack: data['showBack'] == true,
         showSave: data['showSave'] == true,
-        showMenu: data['showMenu'] == true,
+        showMenu: data['showMenu'] != false,
         showSearch: data['showSearch'] == true,
         label: (data['label'] as String?)?.trim() ?? '',
         saveLabel: (data['saveLabel'] as String?)?.trim() ?? '',
@@ -80,7 +79,7 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       );
       debugPrint(
         '[headerState] visible=${next.visible} back=${next.showBack} '
-        'menu=${next.showMenu} label="${next.label}"',
+        'label="${next.label}"',
       );
       diaryAppBar.value = next;
       return;
