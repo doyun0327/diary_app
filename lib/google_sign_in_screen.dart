@@ -15,6 +15,7 @@ class GoogleSignInScreen extends StatefulWidget {
 class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
   var _busy = true;
   String? _error;
+  String? _rawError;
   var _errorSentToWeb = false;
 
   @override
@@ -35,6 +36,7 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
     setState(() {
       _busy = true;
       _error = null;
+      _rawError = null;
       _errorSentToWeb = false;
     });
     try {
@@ -49,14 +51,32 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
       setState(() {
         _busy = false;
         _error = code;
+        _rawError = googleErrorDebugDump(e);
       });
     }
   }
 
   String _errorText(String code) {
+    if (code.startsWith('developer_error')) {
+      final detail = code.contains(':') ? code.split(':').last : '';
+      if (detail == '12500') {
+        return 'Google 로그인 설정이 아직 덜 됐어요.\n'
+            'OAuth 동의 화면(브랜딩)과\n'
+            'Firebase SHA-1을 확인해 주세요.\n'
+            '(코드 12500)';
+      }
+      if (detail == '10') {
+        return 'Play 앱 서명 SHA-1이\n'
+            'Firebase/Google Cloud Android\n'
+            '클라이언트에 없어요.\n'
+            '(코드 10)';
+      }
+      return 'Google 로그인 설정 오류예요.\n'
+          'SHA-1 / OAuth 동의 화면을\n'
+          '확인해 주세요.\n'
+          '($code)';
+    }
     switch (code) {
-      case 'developer_error':
-        return 'Play 앱 서명 SHA-1이 Google Cloud\nAndroid 클라이언트에 없어요.\nCloud Console에 추가한 뒤 재설치해 주세요.';
       case 'play_services':
         return 'Google Play 서비스 / 계정 설정을 확인해 주세요.';
       case 'network':
@@ -112,6 +132,19 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+                if (_rawError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _rawError!,
+                    textAlign: TextAlign.left,
+                    style: const TextStyle(
+                      height: 1.35,
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
