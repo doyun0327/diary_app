@@ -116,11 +116,10 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     }
     if (type == 'rewardedAdShow') {
       final reason = (data['reason'] as String?)?.trim() ?? 'aiDraw';
+      // AdMob 닫기 버튼은 가로챌 수 없어, 광고 직전에 안내만 짧게 보여 줌
+      await _showRewardedWatchTip();
       final ok = await RewardedAdService.instance.showForAiDraw();
       await WebViewHost.instance.dispatchRewardedAdResult(ok: ok, reason: reason);
-      if (!ok) {
-        _snack('광고를 끝까지 봐야 AI 그림을 받을 수 있어요.');
-      }
       return;
     }
     if (type == 'theme') {
@@ -279,6 +278,55 @@ bool handleSavedFileNotification(String? payload) {
 void _announceSavedFile({required String uri, required String mime}) {
   diaryMessengerKey.currentState?.hideCurrentMaterialBanner();
   savedFileNotice?.call(uri, mime);
+}
+
+/// 리워드 광고 직전 안내. 추가 탭 없이 자동으로 넘어감.
+/// (AdMob 전체화면의 닫기 버튼/확인창은 앱에서 커스텀 불가)
+Future<void> _showRewardedWatchTip() async {
+  final ctx = diaryMessengerKey.currentContext;
+  if (ctx == null || !ctx.mounted) return;
+
+  showGeneralDialog<void>(
+    context: ctx,
+    barrierDismissible: false,
+    barrierColor: const Color(0xE6000000),
+    transitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return const SafeArea(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 28),
+            child: Material(
+              color: Colors.transparent,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.ondemand_video, color: Colors.white, size: 40),
+                  SizedBox(height: 16),
+                  Text(
+                    '광고를 끝까지 보면\nAI 그림을 1번 그릴 수 있어요.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  await Future<void>.delayed(const Duration(milliseconds: 2200));
+  if (ctx.mounted) {
+    Navigator.of(ctx, rootNavigator: true).pop();
+  }
+  await Future<void>.delayed(const Duration(milliseconds: 100));
 }
 
 void _snack(String message) {
