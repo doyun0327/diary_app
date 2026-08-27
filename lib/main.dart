@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'banner_install_gate.dart';
 import 'file_chooser.dart';
 import 'google_auth_native.dart';
 import 'google_sign_in_screen.dart';
@@ -94,6 +95,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   var _edgeDragDx = 0.0;
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
+  bool _bannerGraceChecked = false;
+  bool _bannerGraceElapsed = false;
+  Timer? _bannerGraceTimer;
 
   /// Google 샘플 테스트 배너 (디버그 전용)
   static const _androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
@@ -150,7 +154,28 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       ..loadRequest(Uri.parse(kDiaryWebUrl));
     WebViewHost.instance.controller = _controller;
     attachAndroidFileChooser(_controller);
-    _onSubscriptionChanged();
+    unawaited(_initBannerGrace());
+  }
+
+  Future<void> _initBannerGrace() async {
+    final elapsed = await isBannerGraceElapsed();
+    if (!mounted) return;
+    _bannerGraceChecked = true;
+    if (elapsed) {
+      setState(() => _bannerGraceElapsed = true);
+      _onSubscriptionChanged();
+      return;
+    }
+    setState(() => _bannerGraceElapsed = false);
+    final remaining = await bannerGraceRemaining();
+    if (remaining != null) {
+      debugPrint('[ads] banner grace remaining: ${remaining.inMinutes}m ${remaining.inSeconds % 60}s');
+      _bannerGraceTimer = Timer(remaining, () {
+        if (!mounted) return;
+        setState(() => _bannerGraceElapsed = true);
+        _onSubscriptionChanged();
+      });
+    }
   }
 
   Future<void> _syncHeaderFromWeb() async {
@@ -196,6 +221,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
     RewardedAdService.instance.readyNotifier.removeListener(_onSubscriptionChanged);
+    _bannerGraceTimer?.cancel();
     _disposeBanner();
     super.dispose();
   }
@@ -206,6 +232,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       _disposeBanner();
       return;
     }
+    if (!_bannerGraceChecked || !_bannerGraceElapsed) return;
     _ensureBanner();
   }
 
@@ -566,6 +593,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                       // Flutter AppBar 쓰는 화면(홈·쓰기)만 배너 자리 예약.
                       // 친구방·상세(웹 툴바)에서는 넣지 않음 → 웹/앱 크롬 겹침·이중 배너 방지
                       if (header.visible &&
+                          _bannerGraceElapsed &&
                           !SubscriptionService.instance.activeNotifier.value)
                         SizedBox(
                           height: AdSize.banner.height.toDouble(),
