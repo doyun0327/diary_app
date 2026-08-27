@@ -21,8 +21,11 @@ class _GoogleSignInScreenState extends State<GoogleSignInScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _signIn();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 라우트 전환·WebView 포커스 해제 후 계정창 호출 (가려짐/지연 방지)
+      await Future<void>.delayed(const Duration(milliseconds: 320));
+      if (!mounted) return;
+      await _signIn();
     });
   }
 

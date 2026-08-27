@@ -284,6 +284,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         if (!mounted) return;
+        // WebView 포커스가 풀린 뒤 푸시 (계정 선택창 지연 완화)
+        await Future<void>.delayed(const Duration(milliseconds: 120));
+        if (!mounted) return;
         final result = await Navigator.of(context).push<String>(
           MaterialPageRoute(builder: (_) => const GoogleSignInScreen()),
         );
