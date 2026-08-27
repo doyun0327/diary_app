@@ -169,12 +169,10 @@ class SubscriptionService {
     await _dispatch(
       active: active,
       expiresAtMs: expiresAtMs,
-      productId: active
-          ? (entitlement?.productIdentifier ??
-              (info.activeSubscriptions.isNotEmpty
-                  ? info.activeSubscriptions.first
-                  : null))
-          : null,
+      productId: entitlement?.productIdentifier ??
+          (info.activeSubscriptions.isNotEmpty
+              ? info.activeSubscriptions.first
+              : null),
     );
   }
 
