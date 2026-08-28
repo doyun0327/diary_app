@@ -109,6 +109,7 @@ class SubscriptionService {
     }
 
     final result = await Purchases.purchase(PurchaseParams.package(package));
+    await _pushPurchaseComplete(result.customerInfo);
     await _pushStatus(result.customerInfo);
     // 결제 직후 entitlement 반영 지연 대비 한 번 더
     try {
@@ -152,21 +153,44 @@ class SubscriptionService {
   }
 
   Future<void> _pushStatus(CustomerInfo info) async {
+    final snapshot = _snapshotFromInfo(info);
+    activeNotifier.value = snapshot.active;
+    debugPrint(
+      '[subscription] push active=${snapshot.active} '
+      'product=${snapshot.productId} '
+      'subs=${info.activeSubscriptions} '
+      'entitlements=${info.entitlements.active.keys.toList()}',
+    );
+    await _dispatch(
+      active: snapshot.active,
+      expiresAtMs: snapshot.expiresAtMs,
+      productId: snapshot.productId,
+    );
+  }
+
+  Future<void> _pushPurchaseComplete(CustomerInfo info) async {
+    final snapshot = _snapshotFromInfo(info);
+    activeNotifier.value = snapshot.active;
+    debugPrint(
+      '[subscription] purchase complete active=${snapshot.active} '
+      'product=${snapshot.productId}',
+    );
+    await WebViewHost.instance.dispatchSubscriptionPurchaseComplete(
+      active: snapshot.active,
+      expiresAtMs: snapshot.expiresAtMs,
+      productId: snapshot.productId,
+    );
+  }
+
+  _SubscriptionSnapshot _snapshotFromInfo(CustomerInfo info) {
     final active = _isPremium(info);
     final entitlement = _pickEntitlement(info);
-    activeNotifier.value = active;
     int? expiresAtMs;
     final expiration = entitlement?.expirationDate;
     if (expiration != null) {
       expiresAtMs = DateTime.tryParse(expiration)?.millisecondsSinceEpoch;
     }
-    debugPrint(
-      '[subscription] push active=$active '
-      'product=${entitlement?.productIdentifier} '
-      'subs=${info.activeSubscriptions} '
-      'entitlements=${info.entitlements.active.keys.toList()}',
-    );
-    await _dispatch(
+    return _SubscriptionSnapshot(
       active: active,
       expiresAtMs: expiresAtMs,
       productId: entitlement?.productIdentifier ??
@@ -188,4 +212,16 @@ class SubscriptionService {
       productId: productId,
     );
   }
+}
+
+class _SubscriptionSnapshot {
+  const _SubscriptionSnapshot({
+    required this.active,
+    required this.expiresAtMs,
+    this.productId,
+  });
+
+  final bool active;
+  final int? expiresAtMs;
+  final String? productId;
 }

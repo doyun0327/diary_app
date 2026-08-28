@@ -60,6 +60,26 @@ class WebViewHost {
     ''');
   }
 
+  /// 결제 완료 직후 Pro 상태 즉시 반영 (웹 `__onDiarySubscriptionPurchaseComplete`)
+  Future<void> dispatchSubscriptionPurchaseComplete({
+    required bool active,
+    int? expiresAtMs,
+    String? productId,
+  }) async {
+    final payload = jsonEncode({
+      'active': active,
+      'expiresAt': expiresAtMs,
+      'productId': productId,
+    });
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiarySubscriptionPurchaseComplete === 'function') {
+        window.__onDiarySubscriptionPurchaseComplete($payload);
+      }
+      window.dispatchEvent(new CustomEvent('diary-subscription-purchase-complete', { detail: $payload }));
+    ''');
+  }
+
   Future<void> dispatchRewardedAdResult({
     required bool ok,
     String reason = 'aiDraw',
