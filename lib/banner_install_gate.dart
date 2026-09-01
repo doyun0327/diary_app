@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// 설치(첫 실행) 후 이 기간이 지나야 배너 광고 표시 (테스트: 30분, 운영: 7일)
-const Duration kBannerGracePeriod = Duration(minutes: 30);
+/// 설치(첫 실행) 후 이 기간이 지나야 배너 광고 표시
+const Duration kBannerGracePeriod = Duration(days: 7);
 
 DateTime? _cachedGraceStart;
 

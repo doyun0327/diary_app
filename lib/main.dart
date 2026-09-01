@@ -91,6 +91,7 @@ class DiaryWebViewPage extends StatefulWidget {
 class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   late final WebViewController _controller;
   var _loading = true;
+  var _webLoadFailed = false;
   var _openingGoogle = false;
   var _edgeDragDx = 0.0;
   BannerAd? _bannerAd;
@@ -113,6 +114,32 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     return null;
   }
 
+  bool _isDiaryAppUrl(String url) {
+    try {
+      final loaded = Uri.parse(url);
+      final home = Uri.parse(kDiaryWebUrl);
+      return loaded.host == home.host && loaded.scheme == home.scheme;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _retryWebLoad() {
+    setState(() {
+      _loading = true;
+      _webLoadFailed = false;
+    });
+    unawaited(_controller.loadRequest(Uri.parse(kDiaryWebUrl)));
+  }
+
+  void _onMainFrameLoadFailed() {
+    if (!mounted || _webLoadFailed) return;
+    setState(() {
+      _webLoadFailed = true;
+      _loading = false;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -127,15 +154,25 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
       )
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (_) {
-            setState(() => _loading = true);
+          onPageStarted: (url) {
+            setState(() {
+              _loading = true;
+              if (_isDiaryAppUrl(url)) {
+                _webLoadFailed = false;
+              }
+            });
             // 첫 페인트 전에 Flutter 플래그 → 웹 헤더/AppBar 이중 표시·달력 점프 방지
             unawaited(_controller.runJavaScript('''
               window.__DIARY_FLUTTER__ = true;
             '''));
           },
-          onPageFinished: (_) {
-            setState(() => _loading = false);
+          onPageFinished: (url) {
+            setState(() {
+              _loading = false;
+              if (_isDiaryAppUrl(url)) {
+                _webLoadFailed = false;
+              }
+            });
             WebViewHost.instance.controller = _controller;
             diaryPush.controller = _controller;
             diaryPush.flushPending();
@@ -148,6 +185,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
           },
           onWebResourceError: (error) {
             debugPrint('WebView error: ${error.description}');
+            if (error.isForMainFrame ?? false) {
+              _onMainFrameLoadFailed();
+            }
           },
         ),
       )
@@ -586,8 +626,51 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                                 },
                               ),
                             ),
-                            if (_loading)
+                            if (_loading && !_webLoadFailed)
                               const Center(child: CircularProgressIndicator()),
+                            if (_webLoadFailed)
+                              Positioned.fill(
+                                child: ColoredBox(
+                                  color: theme.background,
+                                  child: SafeArea(
+                                    child: Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 32,
+                                        ),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '네트워크를 확인해 주세요.',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                color: kCalendarHeaderColor
+                                                    .withOpacity(0.88),
+                                                fontSize: 17,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.45,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 20),
+                                            TextButton(
+                                              onPressed: _retryWebLoad,
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: theme.accent,
+                                                textStyle: const TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                              child: const Text('다시 시도'),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
