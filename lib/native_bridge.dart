@@ -100,17 +100,14 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         await SubscriptionService.instance.purchaseMonthly();
       } catch (e, st) {
         debugPrint('subscription purchase failed: $e\n$st');
-        _snack('?? ??? ?????. ?? ? ?? ??? ???.');
       }
       return;
     }
     if (type == 'subscriptionRestore') {
       try {
         await SubscriptionService.instance.restore();
-        _snack('?? ??? ?????.');
       } catch (e, st) {
         debugPrint('subscription restore failed: $e\n$st');
-        _snack('?? ??? ?????.');
       }
       return;
     }
@@ -256,7 +253,6 @@ Future<void> openSavedFile(String uri, String mime) async {
     });
   } catch (e) {
     debugPrint('openSavedFile failed: $e');
-    _snack('????????? ??? ??? ?????????.');
   }
 }
 
@@ -279,12 +275,6 @@ bool handleSavedFileNotification(String? payload) {
 void _announceSavedFile({required String uri, required String mime}) {
   diaryMessengerKey.currentState?.hideCurrentMaterialBanner();
   savedFileNotice?.call(uri, mime);
-}
-
-void _snack(String message) {
-  diaryMessengerKey.currentState?.showSnackBar(
-    SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-  );
 }
 
 class DiaryThemeState {
