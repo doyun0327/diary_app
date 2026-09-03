@@ -96,4 +96,38 @@ class WebViewHost {
       window.dispatchEvent(new CustomEvent('diary-rewarded-ad-result', { detail: $payload }));
     ''');
   }
+
+  Future<void> dispatchTipPurchaseComplete({
+    required bool ok,
+    bool cancelled = false,
+    String? productId,
+    String? error,
+  }) async {
+    final payload = jsonEncode({
+      'ok': ok,
+      'cancelled': cancelled,
+      'productId': productId,
+      'error': error,
+    });
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryTipPurchaseComplete === 'function') {
+        window.__onDiaryTipPurchaseComplete($payload);
+      }
+      window.dispatchEvent(new CustomEvent('diary-tip-purchase-complete', { detail: $payload }));
+    ''');
+  }
+
+  Future<void> dispatchTipProducts({
+    required List<Map<String, String>> products,
+  }) async {
+    final payload = jsonEncode({'products': products});
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryTipProducts === 'function') {
+        window.__onDiaryTipProducts($payload);
+      }
+      window.dispatchEvent(new CustomEvent('diary-tip-products', { detail: $payload }));
+    ''');
+  }
 }

@@ -20,4 +20,17 @@ class SubscriptionConfig {
 
   /// Play Console / App Store Connect 상품 ID
   static const productId = 'pageby_monthly';
+
+  /// 개발자 츄르(후원) 소모성 상품
+  static const tipProductIds = <String>[
+    'pageby_churu_1',
+    'pageby_churu_3',
+    'pageby_churu_box',
+  ];
+
+  static bool isTipProduct(String? productId) {
+    if (productId == null || productId.isEmpty) return false;
+    if (productId.contains('churu')) return true;
+    return tipProductIds.contains(productId);
+  }
 }

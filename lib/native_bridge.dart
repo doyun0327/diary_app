@@ -116,6 +116,41 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       }
       return;
     }
+    if (type == 'tipPurchase') {
+      final productId = (data['productId'] as String?)?.trim() ?? '';
+      if (productId.isEmpty) {
+        await WebViewHost.instance.dispatchTipPurchaseComplete(
+          ok: false,
+          error: 'invalid_product',
+        );
+        return;
+      }
+      try {
+        await SubscriptionService.instance.purchaseTip(productId);
+      } catch (e, st) {
+        debugPrint('tip purchase failed: $e\n$st');
+        // purchaseTip이 이미 콜백했을 수도 있지만, 웹이 멈추지 않게 한 번 더 보냄
+        try {
+          await WebViewHost.instance.dispatchTipPurchaseComplete(
+            ok: false,
+            productId: productId,
+            error: 'purchase_failed',
+          );
+        } catch (_) {}
+      }
+      return;
+    }
+    if (type == 'tipProducts') {
+      try {
+        await SubscriptionService.instance.fetchTipProducts();
+      } catch (e, st) {
+        debugPrint('tip products fetch failed: $e\n$st');
+        try {
+          await WebViewHost.instance.dispatchTipProducts(products: const []);
+        } catch (_) {}
+      }
+      return;
+    }
     if (type == 'rewardedAdShow') {
       final reason = (data['reason'] as String?)?.trim() ?? 'aiDraw';
       final ok = await RewardedAdService.instance.showForAiDraw();

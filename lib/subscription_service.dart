@@ -147,6 +147,172 @@ class SubscriptionService {
     }
   }
 
+  /// 츄르 상품 스토어 가격 조회 (현지 통화 priceString)
+  Future<void> fetchTipProducts() async {
+    if (!_configured) {
+      await WebViewHost.instance.dispatchTipProducts(products: const []);
+      return;
+    }
+
+    final Map<String, Map<String, String>> byId = {};
+
+    try {
+      final offerings = await Purchases.getOfferings();
+      for (final offering in offerings.all.values) {
+        for (final package in offering.availablePackages) {
+          final product = package.storeProduct;
+          if (!SubscriptionConfig.isTipProduct(product.identifier)) continue;
+          byId[product.identifier] = {
+            'productId': product.identifier,
+            'priceString': product.priceString,
+            'currencyCode': product.currencyCode,
+          };
+        }
+      }
+    } catch (e, st) {
+      debugPrint('[tip] offerings price lookup failed: $e\n$st');
+    }
+
+    final missing = SubscriptionConfig.tipProductIds
+        .where((id) => !byId.containsKey(id))
+        .toList();
+    if (missing.isNotEmpty) {
+      try {
+        final products = await Purchases.getProducts(
+          missing,
+          productCategory: ProductCategory.nonSubscription,
+        );
+        for (final product in products) {
+          byId[product.identifier] = {
+            'productId': product.identifier,
+            'priceString': product.priceString,
+            'currencyCode': product.currencyCode,
+          };
+        }
+      } catch (e, st) {
+        debugPrint('[tip] getProducts price lookup failed: $e\n$st');
+      }
+    }
+
+    // 앱이 기대하는 순서로 정렬
+    final ordered = <Map<String, String>>[];
+    for (final id in SubscriptionConfig.tipProductIds) {
+      final row = byId[id];
+      if (row != null) ordered.add(row);
+    }
+    for (final entry in byId.entries) {
+      if (!SubscriptionConfig.tipProductIds.contains(entry.key)) {
+        ordered.add(entry.value);
+      }
+    }
+
+    debugPrint('[tip] products for web: $ordered');
+    await WebViewHost.instance.dispatchTipProducts(products: ordered);
+  }
+
+  /// 츄르(후원) 소모성 상품 구매
+  Future<void> purchaseTip(String productId) async {
+    if (!_configured) {
+      await WebViewHost.instance.dispatchTipPurchaseComplete(
+        ok: false,
+        productId: productId,
+        error: 'not_configured',
+      );
+      return;
+    }
+    if (!SubscriptionConfig.isTipProduct(productId)) {
+      await WebViewHost.instance.dispatchTipPurchaseComplete(
+        ok: false,
+        productId: productId,
+        error: 'invalid_product',
+      );
+      return;
+    }
+
+    Package? tipPackage;
+    StoreProduct? storeProduct;
+
+    try {
+      final offerings = await Purchases.getOfferings();
+      for (final offering in offerings.all.values) {
+        for (final package in offering.availablePackages) {
+          final id = package.storeProduct.identifier;
+          if (id == productId || id.startsWith('$productId:')) {
+            tipPackage = package;
+            storeProduct = package.storeProduct;
+            break;
+          }
+        }
+        if (tipPackage != null) break;
+      }
+    } catch (e, st) {
+      debugPrint('[tip] offerings lookup failed: $e\n$st');
+    }
+
+    if (storeProduct == null) {
+      for (final category in [
+        ProductCategory.nonSubscription,
+        ProductCategory.subscription,
+      ]) {
+        try {
+          final products = await Purchases.getProducts(
+            [productId],
+            productCategory: category,
+          );
+          if (products.isNotEmpty) {
+            storeProduct = products.first;
+            debugPrint(
+              '[tip] getProducts hit category=$category id=${storeProduct.identifier}',
+            );
+            break;
+          }
+        } catch (e, st) {
+          debugPrint('[tip] getProducts($category) failed: $e\n$st');
+        }
+      }
+    }
+
+    if (tipPackage == null && storeProduct == null) {
+      debugPrint('[tip] product not found: $productId');
+      await WebViewHost.instance.dispatchTipPurchaseComplete(
+        ok: false,
+        productId: productId,
+        error: 'no_product',
+      );
+      return;
+    }
+
+    try {
+      if (tipPackage != null) {
+        debugPrint(
+          '[tip] purchase via package ${tipPackage.identifier} '
+          '→ ${tipPackage.storeProduct.identifier}',
+        );
+        await Purchases.purchase(PurchaseParams.package(tipPackage));
+      } else {
+        debugPrint('[tip] purchase via storeProduct ${storeProduct!.identifier}');
+        await Purchases.purchase(PurchaseParams.storeProduct(storeProduct));
+      }
+      debugPrint('[tip] purchase ok product=$productId');
+      await WebViewHost.instance.dispatchTipPurchaseComplete(
+        ok: true,
+        productId: productId,
+      );
+    } catch (e, st) {
+      final code = _safeErrorCode(e);
+      final cancelled = code == PurchasesErrorCode.purchaseCancelledError;
+      debugPrint(
+        '[tip] purchase error code=$code cancelled=$cancelled: $e\n$st',
+      );
+      await WebViewHost.instance.dispatchTipPurchaseComplete(
+        ok: false,
+        cancelled: cancelled,
+        productId: productId,
+        error: cancelled ? 'cancelled' : (code?.name ?? 'purchase_failed'),
+      );
+    }
+  }
+
   Future<void> restore() async {
     if (!_configured) {
       throw PlatformException(
@@ -219,6 +385,7 @@ class SubscriptionService {
     final now = DateTime.now();
     for (final entry in info.allExpirationDates.entries) {
       final id = entry.key;
+      if (SubscriptionConfig.isTipProduct(id)) continue;
       if (!(id.contains('pageby') ||
           id == SubscriptionConfig.productId ||
           id.contains('premium'))) {
@@ -328,17 +495,25 @@ class SubscriptionService {
   bool _isPremium(CustomerInfo info) {
     final named = info.entitlements.all[SubscriptionConfig.entitlementId];
     if (named?.isActive == true) return true;
-    if (info.entitlements.active.isNotEmpty) return true;
+    if (info.entitlements.active.isNotEmpty) {
+      for (final ent in info.entitlements.active.values) {
+        if (!SubscriptionConfig.isTipProduct(ent.productIdentifier)) {
+          return true;
+        }
+      }
+    }
     if (info.activeSubscriptions.contains(SubscriptionConfig.productId)) {
       return true;
     }
     for (final id in info.activeSubscriptions) {
+      if (SubscriptionConfig.isTipProduct(id)) continue;
       if (id.contains('pageby') || id.contains('premium')) return true;
     }
     // entitlement 미연결이어도 스토어 구독 만료 전이면 Pro
     final now = DateTime.now();
     for (final entry in info.allExpirationDates.entries) {
       final id = entry.key;
+      if (SubscriptionConfig.isTipProduct(id)) continue;
       if (!(id.contains('pageby') ||
           id.contains('premium') ||
           id == SubscriptionConfig.productId)) {
