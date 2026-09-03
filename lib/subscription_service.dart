@@ -85,6 +85,11 @@ class SubscriptionService {
       );
     }
 
+    // 이미 활성 구독이면 Play "이미 가입됨" 시트 대신 Pro만 동기화
+    if (await _refreshAndPushIfPremium(reason: 'pre-purchase')) {
+      return;
+    }
+
     final offerings = await Purchases.getOfferings();
     final current = offerings.current;
     Package? package;
@@ -108,14 +113,38 @@ class SubscriptionService {
       );
     }
 
-    final result = await Purchases.purchase(PurchaseParams.package(package));
-    await _pushPurchaseComplete(result.customerInfo);
-    await _pushStatus(result.customerInfo);
-    // 결제 직후 entitlement 반영 지연 대비 한 번 더
     try {
-      final info = await Purchases.getCustomerInfo();
-      await _pushStatus(info);
-    } catch (_) {}
+      final result = await Purchases.purchase(PurchaseParams.package(package));
+      await _applyPurchasedInfo(result.customerInfo);
+      if (!_isPremium(result.customerInfo)) {
+        // 결제 성공인데 entitlement 지연이면 Play 기준 Pro 강제 반영
+        await _forceProToWeb(info: result.customerInfo);
+      }
+    } catch (e, st) {
+      final code = _safeErrorCode(e);
+      final alreadyOwned = code == PurchasesErrorCode.productAlreadyPurchasedError ||
+          _looksLikeAlreadyOwned(e);
+      final cancelled = code == PurchasesErrorCode.purchaseCancelledError;
+
+      debugPrint(
+        '[subscription] purchase error code=$code alreadyOwned=$alreadyOwned '
+        'cancelled=$cancelled: $e\n$st',
+      );
+
+      // Play "이미 가입" 시트를 닫으면 대개 purchaseCancelled 로 떨어짐 → 반드시 동기화.
+      if (alreadyOwned || cancelled) {
+        final ok = await _syncOwnedSubscription(
+          forceEvenWithoutRc: alreadyOwned,
+        );
+        if (ok) return;
+        if (cancelled) return;
+      }
+
+      // 그 외 오류도 한 번 동기화 시도 (스토어엔 있는데 RC만 늦은 경우)
+      final recovered = await _syncOwnedSubscription(forceEvenWithoutRc: false);
+      if (recovered) return;
+      rethrow;
+    }
   }
 
   Future<void> restore() async {
@@ -125,11 +154,177 @@ class SubscriptionService {
         message: 'RevenueCat is not configured',
       );
     }
+    await Purchases.syncPurchases();
     final info = await Purchases.restorePurchases();
-    await _pushStatus(info);
+    await _applyPurchasedInfo(info);
+    if (!_isPremium(info)) {
+      // 복원 결과가 비어도 스토어 구독이 있으면 아래에서 잡힘
+      await _refreshAndPushIfPremium(reason: 'restore-fallback');
+    }
   }
 
-  /// entitlement `premium` 뿐 아니라 활성 구독/다른 entitlement도 Pro로 인정
+  Future<void> _applyPurchasedInfo(CustomerInfo info) async {
+    await _pushPurchaseComplete(info);
+    await _pushStatus(info);
+    try {
+      await Purchases.invalidateCustomerInfoCache();
+      final refreshed = await Purchases.getCustomerInfo();
+      await _pushStatus(refreshed);
+    } catch (_) {}
+  }
+
+  /// Play/RevenueCat 구독을 다시 읽고 Pro면 웹에 반영.
+  /// [forceEvenWithoutRc]: Play가 이미 가입됨을 확정한 경우 RC entitlement가 비어도 Pro 부여.
+  Future<bool> _syncOwnedSubscription({required bool forceEvenWithoutRc}) async {
+    try {
+      await Purchases.syncPurchases();
+    } catch (e, st) {
+      debugPrint('[subscription] syncPurchases failed: $e\n$st');
+    }
+
+    CustomerInfo? info;
+    try {
+      info = await Purchases.restorePurchases();
+      await _applyPurchasedInfo(info);
+      if (_isPremium(info)) return true;
+    } catch (e, st) {
+      debugPrint('[subscription] restore after purchase-exit failed: $e\n$st');
+    }
+
+    try {
+      await Purchases.invalidateCustomerInfoCache();
+      info = await Purchases.getCustomerInfo();
+      await _applyPurchasedInfo(info);
+      if (_isPremium(info)) return true;
+    } catch (e, st) {
+      debugPrint('[subscription] getCustomerInfo after purchase-exit failed: $e\n$st');
+    }
+
+    // 취소 후에도 만료 전 pageby 기록이 있으면 Pro
+    if (info != null && _hasUnexpiredPageby(info)) {
+      await _forceProToWeb(info: info);
+      return true;
+    }
+
+    if (forceEvenWithoutRc) {
+      debugPrint('[subscription] Play already-owned → force Pro to web');
+      await _forceProToWeb(info: info);
+      return true;
+    }
+    return false;
+  }
+
+  bool _hasUnexpiredPageby(CustomerInfo info) {
+    if (_isPremium(info)) return true;
+    final now = DateTime.now();
+    for (final entry in info.allExpirationDates.entries) {
+      final id = entry.key;
+      if (!(id.contains('pageby') ||
+          id == SubscriptionConfig.productId ||
+          id.contains('premium'))) {
+        continue;
+      }
+      final raw = entry.value;
+      if (raw == null || raw.isEmpty) {
+        // 만료일 없으면 활성으로 간주
+        return true;
+      }
+      final exp = DateTime.tryParse(raw);
+      if (exp != null && exp.isAfter(now)) return true;
+    }
+    return false;
+  }
+
+  Future<bool> _refreshAndPushIfPremium({required String reason}) async {
+    try {
+      await Purchases.syncPurchases();
+    } catch (_) {}
+    try {
+      await Purchases.invalidateCustomerInfoCache();
+      final info = await Purchases.getCustomerInfo();
+      if (_isPremium(info)) {
+        debugPrint('[subscription] premium found ($reason) — push to web');
+        await _applyPurchasedInfo(info);
+        return true;
+      }
+    } catch (e, st) {
+      debugPrint('[subscription] refresh ($reason) failed: $e\n$st');
+    }
+    return false;
+  }
+
+  /// RevenueCat entitlement가 비어도 Play가 소유를 확인한 경우 웹 Pro 활성
+  Future<void> _forceProToWeb({CustomerInfo? info}) async {
+    final entitlement = info == null ? null : _pickEntitlement(info);
+    int? expiresAtMs;
+    final expiration = entitlement?.expirationDate;
+    if (expiration != null) {
+      expiresAtMs = DateTime.tryParse(expiration)?.millisecondsSinceEpoch;
+    }
+    expiresAtMs ??= DateTime.now()
+        .add(const Duration(days: 30))
+        .millisecondsSinceEpoch;
+    final productId = entitlement?.productIdentifier ??
+        (info != null && info.activeSubscriptions.isNotEmpty
+            ? info.activeSubscriptions.first
+            : SubscriptionConfig.productId);
+
+    activeNotifier.value = true;
+    debugPrint(
+      '[subscription] force Pro active product=$productId expires=$expiresAtMs',
+    );
+    await WebViewHost.instance.dispatchSubscriptionPurchaseComplete(
+      active: true,
+      expiresAtMs: expiresAtMs,
+      productId: productId,
+    );
+    await WebViewHost.instance.dispatchSubscriptionStatus(
+      active: true,
+      expiresAtMs: expiresAtMs,
+      productId: productId,
+    );
+  }
+
+  PurchasesErrorCode? _safeErrorCode(Object e) {
+    if (e is! PlatformException) return null;
+    try {
+      return PurchasesErrorHelper.getErrorCode(e);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _looksLikeAlreadyOwned(Object e) {
+    final text = e.toString().toLowerCase();
+    if (text.contains('productalreadypurchased') ||
+        text.contains('already_purchased') ||
+        text.contains('item_already_owned') ||
+        text.contains('item already owned') ||
+        text.contains('already owned') ||
+        text.contains('already subscribed')) {
+      return true;
+    }
+    if (e is PlatformException) {
+      final message = (e.message ?? '').toLowerCase();
+      final details = '${e.details ?? ''}'.toLowerCase();
+      final code = e.code.toLowerCase();
+      if (message.contains('already') ||
+          details.contains('already') ||
+          details.contains('item_already_owned') ||
+          code.contains('already')) {
+        return true;
+      }
+      // Google Play BillingResponseCode.ITEM_ALREADY_OWNED == 7
+      if (code == '7' || details.contains('responsecode: 7')) {
+        return true;
+      }
+    }
+    final raw = e.toString();
+    return raw.contains('이미') &&
+        (raw.contains('가입') || raw.contains('구독') || raw.contains('구매'));
+  }
+
+  /// entitlement `premium` 뿐 아니라 활성 구독/만료 전 구매도 Pro로 인정
   bool _isPremium(CustomerInfo info) {
     final named = info.entitlements.all[SubscriptionConfig.entitlementId];
     if (named?.isActive == true) return true;
@@ -139,6 +334,20 @@ class SubscriptionService {
     }
     for (final id in info.activeSubscriptions) {
       if (id.contains('pageby') || id.contains('premium')) return true;
+    }
+    // entitlement 미연결이어도 스토어 구독 만료 전이면 Pro
+    final now = DateTime.now();
+    for (final entry in info.allExpirationDates.entries) {
+      final id = entry.key;
+      if (!(id.contains('pageby') ||
+          id.contains('premium') ||
+          id == SubscriptionConfig.productId)) {
+        continue;
+      }
+      final raw = entry.value;
+      if (raw == null || raw.isEmpty) continue;
+      final exp = DateTime.tryParse(raw);
+      if (exp != null && exp.isAfter(now)) return true;
     }
     return false;
   }

@@ -100,6 +100,11 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         await SubscriptionService.instance.purchaseMonthly();
       } catch (e, st) {
         debugPrint('subscription purchase failed: $e\n$st');
+      } finally {
+        // 결제창/이미가입 시트 닫힌 뒤에도 Pro 상태 한 번 더 맞춤
+        try {
+          await SubscriptionService.instance.syncToWeb();
+        } catch (_) {}
       }
       return;
     }

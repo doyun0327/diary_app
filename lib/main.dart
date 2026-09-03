@@ -92,6 +92,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
   late final WebViewController _controller;
   var _loading = true;
   var _webLoadFailed = false;
+  var _webReady = false;
   var _openingGoogle = false;
   var _edgeDragDx = 0.0;
   BannerAd? _bannerAd;
@@ -128,16 +129,68 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     setState(() {
       _loading = true;
       _webLoadFailed = false;
+      _webReady = false;
     });
     unawaited(_controller.loadRequest(Uri.parse(kDiaryWebUrl)));
   }
 
   void _onMainFrameLoadFailed() {
-    if (!mounted || _webLoadFailed) return;
+    if (!mounted || _webReady) return;
     setState(() {
       _webLoadFailed = true;
+      _webReady = false;
       _loading = false;
     });
+  }
+
+  bool _isOfflineWebError(WebResourceError error) {
+    final code = error.errorCode;
+    final desc = error.description.toLowerCase();
+    final type = error.errorType;
+    if (code == -2 ||
+        code == -6 ||
+        code == -7 ||
+        code == -21 ||
+        code == -102 ||
+        code == -105 ||
+        code == -106 ||
+        code == -109 ||
+        code == -118) {
+      return true;
+    }
+    if (type == WebResourceErrorType.hostLookup ||
+        type == WebResourceErrorType.connect ||
+        type == WebResourceErrorType.timeout) {
+      return true;
+    }
+    return desc.contains('internet') ||
+        desc.contains('disconnected') ||
+        desc.contains('name_not_resolved') ||
+        desc.contains('timed out') ||
+        desc.contains('network') ||
+        desc.contains('connection');
+  }
+
+  Future<bool> _isDiaryShellLoaded() async {
+    try {
+      final raw = await _controller.runJavaScriptReturningResult('''
+        (function(){
+          try {
+            if (location.protocol === 'chrome-error:') return 'fail';
+            if (document.getElementById('root')) return 'ok';
+            var t = ((document.body && document.body.innerText) || '').toString();
+            if (/ERR_[A-Z_]+/.test(t)) return 'fail';
+            if (t.indexOf('웹 페이지를 사용할 수 없음') >= 0) return 'fail';
+            return 'fail';
+          } catch (e) {
+            return 'fail';
+          }
+        })()
+      ''');
+      return raw.toString().replaceAll('"', '').toLowerCase().contains('ok');
+    } catch (_) {
+      return false;
+    }
   }
 
   @override
@@ -157,26 +210,28 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
           onPageStarted: (url) {
             setState(() {
               _loading = true;
-              if (_isDiaryAppUrl(url)) {
-                _webLoadFailed = false;
-              }
+              _webReady = false;
             });
-            // 첫 페인트 전에 Flutter 플래그 → 웹 헤더/AppBar 이중 표시·달력 점프 방지
             unawaited(_controller.runJavaScript('''
               window.__DIARY_FLUTTER__ = true;
             '''));
           },
           onPageFinished: (url) {
-            setState(() {
-              _loading = false;
-              if (_isDiaryAppUrl(url)) {
-                _webLoadFailed = false;
-              }
-            });
-            WebViewHost.instance.controller = _controller;
-            diaryPush.controller = _controller;
-            diaryPush.flushPending();
             unawaited(() async {
+              final ok = _isDiaryAppUrl(url) && await _isDiaryShellLoaded();
+              if (!mounted) return;
+              if (!ok) {
+                _onMainFrameLoadFailed();
+                return;
+              }
+              setState(() {
+                _loading = false;
+                _webLoadFailed = false;
+                _webReady = true;
+              });
+              WebViewHost.instance.controller = _controller;
+              diaryPush.controller = _controller;
+              diaryPush.flushPending();
               await WebViewHost.instance.markFlutter();
               await _syncHeaderFromWeb();
               if (mounted) await _pushSafeAreaInsets(context);
@@ -184,8 +239,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
             }());
           },
           onWebResourceError: (error) {
-            debugPrint('WebView error: ${error.description}');
-            if (error.isForMainFrame ?? false) {
+            debugPrint('WebView error: ${error.errorCode} ${error.description}');
+            final mainFrame = error.isForMainFrame;
+            if (mainFrame == true || (mainFrame != false && _isOfflineWebError(error))) {
               _onMainFrameLoadFailed();
             }
           },
@@ -606,7 +662,13 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                       Expanded(
                         child: Stack(
                           children: [
-                            WebViewWidget(controller: _controller),
+                            Opacity(
+                              opacity: _webReady && !_webLoadFailed ? 1 : 0,
+                              child: IgnorePointer(
+                                ignoring: !_webReady || _webLoadFailed,
+                                child: WebViewWidget(controller: _controller),
+                              ),
+                            ),
                             Positioned(
                               left: 0,
                               top: 0,
