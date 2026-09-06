@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -88,18 +90,25 @@ class DiaryWebViewPage extends StatefulWidget {
   State<DiaryWebViewPage> createState() => _DiaryWebViewPageState();
 }
 
-class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
+class _DiaryWebViewPageState extends State<DiaryWebViewPage>
+    with WidgetsBindingObserver {
   late final WebViewController _controller;
   var _loading = true;
   var _webLoadFailed = false;
+  /// 로드 실패가 배포/점검으로 보일 때 true (네트워크 문구 대신 업데이트 안내)
+  var _webUpdatingHint = false;
   var _webReady = false;
   var _openingGoogle = false;
   var _edgeDragDx = 0.0;
+  /// 웹은 떠 있는데 네트워크만 끊긴 경우 (깨진 이미지 등) 안내
+  var _offlineBanner = false;
   BannerAd? _bannerAd;
   bool _bannerLoaded = false;
   bool _bannerGraceChecked = false;
   bool _bannerGraceElapsed = false;
   Timer? _bannerGraceTimer;
+  Timer? _autoRetryTimer;
+  Timer? _offlinePollTimer;
 
   /// Google 샘플 테스트 배너 (디버그 전용)
   static const _androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
@@ -129,18 +138,139 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
     setState(() {
       _loading = true;
       _webLoadFailed = false;
+      _webUpdatingHint = false;
       _webReady = false;
     });
     unawaited(_controller.loadRequest(Uri.parse(kDiaryWebUrl)));
   }
 
-  void _onMainFrameLoadFailed() {
+  void _startAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (!mounted) return;
+      if (_webReady && !_webLoadFailed) {
+        // 업데이트 HTML이 WebView에 떠 있는 동안에도 주기적으로 홈 재시도
+        unawaited(_controller.loadRequest(Uri.parse(kDiaryWebUrl)));
+        return;
+      }
+      if (_webLoadFailed) {
+        _retryWebLoad();
+      }
+    });
+  }
+
+  void _stopAutoRetry() {
+    _autoRetryTimer?.cancel();
+    _autoRetryTimer = null;
+  }
+
+  Future<bool> _isNetworkReachable() async {
+    try {
+      final base = Uri.parse(kDiaryWebUrl);
+      final uri = base.replace(
+        path: '/deploy-status.json',
+        queryParameters: {'t': '${DateTime.now().millisecondsSinceEpoch}'},
+      );
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 3)
+        ..idleTimeout = const Duration(seconds: 3);
+      try {
+        final req = await client.getUrl(uri);
+        req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+        final res = await req.close().timeout(const Duration(seconds: 4));
+        await res.drain<void>();
+        // 응답만 오면 연결됨 (503 점검 포함)
+        return true;
+      } finally {
+        client.close(force: true);
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _startOfflinePoll() {
+    if (_offlinePollTimer != null) return;
+    _offlinePollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      unawaited(_refreshOfflineBanner());
+    });
+  }
+
+  void _stopOfflinePoll() {
+    _offlinePollTimer?.cancel();
+    _offlinePollTimer = null;
+  }
+
+  Future<void> _refreshOfflineBanner() async {
+    if (!mounted) return;
+    // 전체 로드 실패 화면이 이미 네트워크 안내를 담당
+    if (!_webReady || _webLoadFailed) {
+      if (_offlineBanner) setState(() => _offlineBanner = false);
+      _stopOfflinePoll();
+      return;
+    }
+    final online = await _isNetworkReachable();
+    if (!mounted) return;
+    if (!online) {
+      if (!_offlineBanner) setState(() => _offlineBanner = true);
+      _startOfflinePoll();
+    } else {
+      if (_offlineBanner) setState(() => _offlineBanner = false);
+      _stopOfflinePoll();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshOfflineBanner());
+    }
+  }
+
+  Future<bool> _isServerMaintenance() async {
+    try {
+      final base = Uri.parse(kDiaryWebUrl);
+      final uri = base.replace(
+        path: '/deploy-status.json',
+        queryParameters: {'t': '${DateTime.now().millisecondsSinceEpoch}'},
+      );
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 4)
+        ..idleTimeout = const Duration(seconds: 4);
+      try {
+        final req = await client.getUrl(uri);
+        req.headers.set(HttpHeaders.acceptHeader, 'application/json');
+        final res = await req.close().timeout(const Duration(seconds: 5));
+        final body = await res.transform(utf8.decoder).join();
+        if (res.statusCode == 503) return true;
+        if (res.statusCode != 200) return false;
+        final decoded = jsonDecode(body);
+        if (decoded is Map && decoded['maintenance'] == true) return true;
+        return body.contains('"maintenance":true') ||
+            body.contains('"maintenance": true');
+      } finally {
+        client.close(force: true);
+      }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _onMainFrameLoadFailed() async {
+    if (!mounted || _webReady) return;
+    final updating = await _isServerMaintenance();
     if (!mounted || _webReady) return;
     setState(() {
       _webLoadFailed = true;
+      _webUpdatingHint = updating;
       _webReady = false;
       _loading = false;
     });
+    if (updating) {
+      _startAutoRetry();
+    } else {
+      _stopAutoRetry();
+    }
   }
 
   bool _isOfflineWebError(WebResourceError error) {
@@ -171,14 +301,20 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
         desc.contains('connection');
   }
 
-  Future<bool> _isDiaryShellLoaded() async {
+  /// ok | updating | fail
+  Future<String> _diaryShellStatus() async {
     try {
       final raw = await _controller.runJavaScriptReturningResult('''
         (function(){
           try {
             if (location.protocol === 'chrome-error:') return 'fail';
+            if (document.documentElement &&
+                document.documentElement.getAttribute('data-pageby-updating') === '1') {
+              return 'updating';
+            }
             if (document.getElementById('root')) return 'ok';
             var t = ((document.body && document.body.innerText) || '').toString();
+            if (t.indexOf('업데이트 중입니다') >= 0) return 'updating';
             if (/ERR_[A-Z_]+/.test(t)) return 'fail';
             if (t.indexOf('웹 페이지를 사용할 수 없음') >= 0) return 'fail';
             return 'fail';
@@ -187,15 +323,19 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
           }
         })()
       ''');
-      return raw.toString().replaceAll('"', '').toLowerCase().contains('ok');
+      final status = raw.toString().replaceAll('"', '').toLowerCase().trim();
+      if (status.contains('updating')) return 'updating';
+      if (status.contains('ok')) return 'ok';
+      return 'fail';
     } catch (_) {
-      return false;
+      return 'fail';
     }
   }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     googleSignInRequests.addListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.addListener(_onSubscriptionChanged);
     RewardedAdService.instance.readyNotifier.addListener(_onSubscriptionChanged);
@@ -218,15 +358,31 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
           },
           onPageFinished: (url) {
             unawaited(() async {
-              final ok = _isDiaryAppUrl(url) && await _isDiaryShellLoaded();
-              if (!mounted) return;
-              if (!ok) {
-                _onMainFrameLoadFailed();
+              if (!_isDiaryAppUrl(url)) {
+                if (mounted) await _onMainFrameLoadFailed();
                 return;
               }
+              final status = await _diaryShellStatus();
+              if (!mounted) return;
+              if (status == 'fail') {
+                await _onMainFrameLoadFailed();
+                return;
+              }
+              if (status == 'updating') {
+                setState(() {
+                  _loading = false;
+                  _webLoadFailed = false;
+                  _webUpdatingHint = false;
+                  _webReady = true;
+                });
+                _startAutoRetry();
+                return;
+              }
+              _stopAutoRetry();
               setState(() {
                 _loading = false;
                 _webLoadFailed = false;
+                _webUpdatingHint = false;
                 _webReady = true;
               });
               WebViewHost.instance.controller = _controller;
@@ -242,7 +398,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
             debugPrint('WebView error: ${error.errorCode} ${error.description}');
             final mainFrame = error.isForMainFrame;
             if (mainFrame == true || (mainFrame != false && _isOfflineWebError(error))) {
-              _onMainFrameLoadFailed();
+              unawaited(_onMainFrameLoadFailed());
             }
           },
         ),
@@ -314,10 +470,13 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
     RewardedAdService.instance.readyNotifier.removeListener(_onSubscriptionChanged);
     _bannerGraceTimer?.cancel();
+    _stopAutoRetry();
+    _stopOfflinePoll();
     _disposeBanner();
     super.dispose();
   }
@@ -704,7 +863,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Text(
-                                              '네트워크를 확인해 주세요.',
+                                              _webUpdatingHint
+                                                  ? '업데이트 중입니다.\n2분안에 끝나요'
+                                                  : '네트워크를 확인해 주세요.',
                                               textAlign: TextAlign.center,
                                               style: TextStyle(
                                                 color: kCalendarHeaderColor
@@ -724,9 +885,42 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage> {
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                               ),
-                                              child: const Text('다시 시도'),
+                                              child: Text(
+                                                _webUpdatingHint ? '다시 확인' : '다시 시도',
+                                              ),
                                             ),
                                           ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            if (_offlineBanner &&
+                                _webReady &&
+                                !_webLoadFailed)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                top: 0,
+                                child: SafeArea(
+                                  bottom: false,
+                                  child: Material(
+                                    color: const Color(0xE61A1A1A),
+                                    elevation: 2,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      child: Text(
+                                        '네트워크를 확인해 주세요.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.95),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                          height: 1.3,
                                         ),
                                       ),
                                     ),

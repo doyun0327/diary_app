@@ -207,6 +207,8 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         name,
         mime == null || mime.isEmpty ? 'application/octet-stream' : mime,
       );
+      // WebView 모달 닫힘과 겹치면 첫 공유 시트가 바로 닫히는 기기 있음
+      await Future<void>.delayed(const Duration(milliseconds: 120));
       await SharePlus.instance.share(
         ShareParams(
           files: [file],
@@ -220,6 +222,7 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
 
     final body = _shareBody(text: text, url: url);
     if (body == null) return;
+    await Future<void>.delayed(const Duration(milliseconds: 80));
     await SharePlus.instance.share(
       ShareParams(
         text: body,
