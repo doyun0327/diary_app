@@ -258,8 +258,14 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
 
   Future<void> _onMainFrameLoadFailed() async {
     if (!mounted || _webReady) return;
-    final updating = await _isServerMaintenance();
+    final maintenance = await _isServerMaintenance();
     if (!mounted || _webReady) return;
+    // 배포 교체 중에는 페이지 로드만 실패하고 deploy-status는 살아 있는 경우가 많음.
+    // 서버에 닿으면 "네트워크"가 아니라 업데이트 안내로 본다.
+    final reachable =
+        maintenance ? true : await _isNetworkReachable();
+    if (!mounted || _webReady) return;
+    final updating = maintenance || reachable;
     setState(() {
       _webLoadFailed = true;
       _webUpdatingHint = updating;
@@ -315,6 +321,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
             if (document.getElementById('root')) return 'ok';
             var t = ((document.body && document.body.innerText) || '').toString();
             if (t.indexOf('업데이트 중입니다') >= 0) return 'updating';
+            if (t.indexOf('Service updating') >= 0) return 'updating';
             if (/ERR_[A-Z_]+/.test(t)) return 'fail';
             if (t.indexOf('웹 페이지를 사용할 수 없음') >= 0) return 'fail';
             return 'fail';

@@ -134,7 +134,11 @@ class RewardedAdService {
     Completer<bool> completer,
     bool Function() earned,
   ) async {
-    await Future<void>.delayed(const Duration(milliseconds: 400));
+    // onUserEarnedReward 가 dismiss 이후에 오는 네트워크/기기 대비
+    for (var i = 0; i < 25; i++) {
+      if (earned()) break;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
     final ok = earned();
     if (!completer.isCompleted) {
       debugPrint('rewarded dismiss: earned=$ok');

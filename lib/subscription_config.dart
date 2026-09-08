@@ -28,9 +28,29 @@ class SubscriptionConfig {
     'pageby_churu_box',
   ];
 
+  /// Pro 월한도 소진 후 AI 그림 추가 구매 (소모성)
+  static const aiPackProductIds = <String>[
+    'pageby_ai_draw_10',
+    'pageby_ai_draw_20',
+    'pageby_ai_draw_50',
+  ];
+
   static bool isTipProduct(String? productId) {
     if (productId == null || productId.isEmpty) return false;
     if (productId.contains('churu')) return true;
     return tipProductIds.contains(productId);
+  }
+
+  static bool isAiPackProduct(String? productId) {
+    if (productId == null || productId.isEmpty) return false;
+    if (productId.contains('ai_draw')) return true;
+    return aiPackProductIds.any(
+      (id) => productId == id || productId.startsWith('$id:'),
+    );
+  }
+
+  /// 츄르·AI 팩 등 구독이 아닌 소모성 IAP
+  static bool isConsumableProduct(String? productId) {
+    return isTipProduct(productId) || isAiPackProduct(productId);
   }
 }

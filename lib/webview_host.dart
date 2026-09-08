@@ -109,13 +109,17 @@ class WebViewHost {
       'productId': productId,
       'error': error,
     });
-    await runJs('''
+    Future<void> send() => runJs('''
       window.__DIARY_FLUTTER__ = true;
       if (typeof window.__onDiaryTipPurchaseComplete === 'function') {
         window.__onDiaryTipPurchaseComplete($payload);
       }
       window.dispatchEvent(new CustomEvent('diary-tip-purchase-complete', { detail: $payload }));
     ''');
+    await send();
+    // 결제 UI 직후 WebView가 잠깐 준비 안 된 경우 대비
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    await send();
   }
 
   Future<void> dispatchTipProducts({

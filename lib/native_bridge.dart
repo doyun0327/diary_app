@@ -51,11 +51,14 @@ final GlobalKey<ScaffoldMessengerState> diaryMessengerKey =
 void Function(String uri, String mime)? savedFileNotice;
 
 Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
+  // 릴리스에서도 logcat에 보이도록 print 사용 (debugPrint는 필터에 안 잡힐 수 있음)
+  print('[DiaryNative] ${message.message}');
   try {
     final decoded = jsonDecode(message.message);
     if (decoded is! Map) return;
     final data = decoded.cast<String, dynamic>();
     final type = data['type'] as String? ?? 'share';
+    print('[DiaryNative] type=$type');
 
     if (type == 'googleSignIn') {
       enqueueNativeGoogleSignIn();
@@ -118,6 +121,8 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     }
     if (type == 'tipPurchase') {
       final productId = (data['productId'] as String?)?.trim() ?? '';
+      print('[iap] tipPurchase from web productId=$productId');
+      debugPrint('[iap] tipPurchase from web productId=$productId');
       if (productId.isEmpty) {
         await WebViewHost.instance.dispatchTipPurchaseComplete(
           ok: false,
@@ -126,10 +131,17 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         return;
       }
       try {
-        await SubscriptionService.instance.purchaseTip(productId);
+        final handled =
+            await SubscriptionService.instance.purchaseTip(productId);
+        if (!handled) {
+          await WebViewHost.instance.dispatchTipPurchaseComplete(
+            ok: false,
+            productId: productId,
+            error: 'purchase_failed',
+          );
+        }
       } catch (e, st) {
         debugPrint('tip purchase failed: $e\n$st');
-        // purchaseTip이 이미 콜백했을 수도 있지만, 웹이 멈추지 않게 한 번 더 보냄
         try {
           await WebViewHost.instance.dispatchTipPurchaseComplete(
             ok: false,

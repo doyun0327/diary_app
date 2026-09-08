@@ -31,7 +31,8 @@ class SubscriptionService {
       return;
     }
 
-    await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.warn);
+    // 진단용: 릴리스에서도 Purchases/Billing 로그 출력
+    await Purchases.setLogLevel(LogLevel.debug);
     final config = PurchasesConfiguration(apiKey);
     try {
       await Purchases.configure(config);
@@ -210,45 +211,77 @@ class SubscriptionService {
     await WebViewHost.instance.dispatchTipProducts(products: ordered);
   }
 
-  /// 츄르(후원) 소모성 상품 구매
-  Future<void> purchaseTip(String productId) async {
+  /// 츄르·AI 팩 등 소모성 상품 구매 (웹 tipPurchase 채널)
+  /// 이미 WebView에 결과를 보냈으면 true.
+  Future<bool> purchaseTip(String productId) async {
     if (!_configured) {
+      print('[iap] not configured product=$productId');
       await WebViewHost.instance.dispatchTipPurchaseComplete(
         ok: false,
         productId: productId,
         error: 'not_configured',
       );
-      return;
+      return true;
     }
-    if (!SubscriptionConfig.isTipProduct(productId)) {
+    if (!SubscriptionConfig.isConsumableProduct(productId)) {
+      print('[iap] invalid consumable product=$productId');
       await WebViewHost.instance.dispatchTipPurchaseComplete(
         ok: false,
         productId: productId,
         error: 'invalid_product',
       );
-      return;
+      return true;
+    }
+
+    // Offering 대시보드 변경 직후 SDK 캐시 갱신
+    try {
+      await Purchases.syncAttributesAndOfferingsIfNeeded();
+      print('[iap] offerings synced product=$productId');
+    } catch (e, st) {
+      print('[iap] syncAttributesAndOfferingsIfNeeded failed: $e\n$st');
     }
 
     Package? tipPackage;
     StoreProduct? storeProduct;
 
+    // 1) Offering 우선 (패키지 구매가 안정적)
     try {
       final offerings = await Purchases.getOfferings();
+      final availableIds = <String>[];
       for (final offering in offerings.all.values) {
         for (final package in offering.availablePackages) {
-          final id = package.storeProduct.identifier;
-          if (id == productId || id.startsWith('$productId:')) {
+          final storeId = package.storeProduct.identifier;
+          final pkgId = package.identifier;
+          availableIds.add(
+            '$storeId(pkg=$pkgId,offering=${offering.identifier})',
+          );
+          if (_consumableMatches(
+            productId,
+            storeId: storeId,
+            packageId: pkgId,
+          )) {
             tipPackage = package;
             storeProduct = package.storeProduct;
+            debugPrint(
+              '[iap] offerings hit offering=${offering.identifier} '
+              'package=$pkgId store=$storeId',
+            );
             break;
           }
         }
         if (tipPackage != null) break;
       }
+      if (tipPackage == null) {
+        debugPrint(
+          '[iap] offerings miss product=$productId '
+          'current=${offerings.current?.identifier} available=$availableIds',
+        );
+      }
     } catch (e, st) {
-      debugPrint('[tip] offerings lookup failed: $e\n$st');
+      print('[iap] offerings lookup failed: $e\n$st');
     }
 
+    // 2) 스토어 직접 조회 — 소모성은 nonSubscription 필수
     if (storeProduct == null) {
       for (final category in [
         ProductCategory.nonSubscription,
@@ -259,50 +292,57 @@ class SubscriptionService {
             [productId],
             productCategory: category,
           );
+          debugPrint(
+            '[iap] getProducts($category) count=${products.length} '
+            'ids=${products.map((p) => p.identifier).toList()}',
+          );
           if (products.isNotEmpty) {
-            storeProduct = products.first;
-            debugPrint(
-              '[tip] getProducts hit category=$category id=${storeProduct.identifier}',
+            storeProduct = products.firstWhere(
+              (p) => _consumableMatches(productId, storeId: p.identifier),
+              orElse: () => products.first,
             );
             break;
           }
         } catch (e, st) {
-          debugPrint('[tip] getProducts($category) failed: $e\n$st');
+          print('[iap] getProducts($category) failed: $e\n$st');
         }
       }
     }
 
     if (tipPackage == null && storeProduct == null) {
-      debugPrint('[tip] product not found: $productId');
+      print('[iap] product not found: $productId');
       await WebViewHost.instance.dispatchTipPurchaseComplete(
         ok: false,
         productId: productId,
         error: 'no_product',
       );
-      return;
+      return true;
     }
 
     try {
       if (tipPackage != null) {
         debugPrint(
-          '[tip] purchase via package ${tipPackage.identifier} '
+          '[iap] purchase via package ${tipPackage.identifier} '
           '→ ${tipPackage.storeProduct.identifier}',
         );
         await Purchases.purchase(PurchaseParams.package(tipPackage));
       } else {
-        debugPrint('[tip] purchase via storeProduct ${storeProduct!.identifier}');
+        debugPrint(
+          '[iap] purchase via storeProduct ${storeProduct!.identifier}',
+        );
         await Purchases.purchase(PurchaseParams.storeProduct(storeProduct));
       }
-      debugPrint('[tip] purchase ok product=$productId');
+      print('[iap] purchase ok product=$productId');
       await WebViewHost.instance.dispatchTipPurchaseComplete(
         ok: true,
         productId: productId,
       );
+      return true;
     } catch (e, st) {
       final code = _safeErrorCode(e);
       final cancelled = code == PurchasesErrorCode.purchaseCancelledError;
       debugPrint(
-        '[tip] purchase error code=$code cancelled=$cancelled: $e\n$st',
+        '[iap] purchase error code=$code cancelled=$cancelled: $e\n$st',
       );
       await WebViewHost.instance.dispatchTipPurchaseComplete(
         ok: false,
@@ -310,7 +350,26 @@ class SubscriptionService {
         productId: productId,
         error: cancelled ? 'cancelled' : (code?.name ?? 'purchase_failed'),
       );
+      return true;
     }
+  }
+
+  bool _consumableMatches(
+    String productId, {
+    required String storeId,
+    String? packageId,
+  }) {
+    final want = productId.trim();
+    if (want.isEmpty) return false;
+    if (storeId == want || storeId.startsWith('$want:')) return true;
+    if (packageId != null &&
+        (packageId == want || packageId.startsWith('$want:'))) {
+      return true;
+    }
+    if (storeId.contains(want) || (packageId?.contains(want) ?? false)) {
+      return true;
+    }
+    return false;
   }
 
   Future<void> restore() async {
@@ -385,7 +444,7 @@ class SubscriptionService {
     final now = DateTime.now();
     for (final entry in info.allExpirationDates.entries) {
       final id = entry.key;
-      if (SubscriptionConfig.isTipProduct(id)) continue;
+      if (SubscriptionConfig.isConsumableProduct(id)) continue;
       if (!(id.contains('pageby') ||
           id == SubscriptionConfig.productId ||
           id.contains('premium'))) {
@@ -497,7 +556,7 @@ class SubscriptionService {
     if (named?.isActive == true) return true;
     if (info.entitlements.active.isNotEmpty) {
       for (final ent in info.entitlements.active.values) {
-        if (!SubscriptionConfig.isTipProduct(ent.productIdentifier)) {
+        if (!SubscriptionConfig.isConsumableProduct(ent.productIdentifier)) {
           return true;
         }
       }
@@ -506,14 +565,14 @@ class SubscriptionService {
       return true;
     }
     for (final id in info.activeSubscriptions) {
-      if (SubscriptionConfig.isTipProduct(id)) continue;
+      if (SubscriptionConfig.isConsumableProduct(id)) continue;
       if (id.contains('pageby') || id.contains('premium')) return true;
     }
     // entitlement 미연결이어도 스토어 구독 만료 전이면 Pro
     final now = DateTime.now();
     for (final entry in info.allExpirationDates.entries) {
       final id = entry.key;
-      if (SubscriptionConfig.isTipProduct(id)) continue;
+      if (SubscriptionConfig.isConsumableProduct(id)) continue;
       if (!(id.contains('pageby') ||
           id.contains('premium') ||
           id == SubscriptionConfig.productId)) {
