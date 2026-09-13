@@ -148,7 +148,7 @@ class SubscriptionService {
     }
   }
 
-  /// 츄르 상품 스토어 가격 조회 (현지 통화 priceString)
+  /// 츄르·AI 팩·구독 스토어 가격 조회 (현지 통화 priceString)
   Future<void> fetchTipProducts() async {
     if (!_configured) {
       await WebViewHost.instance.dispatchTipProducts(products: const []);
@@ -157,57 +157,106 @@ class SubscriptionService {
 
     final Map<String, Map<String, String>> byId = {};
 
+    void putProduct(StoreProduct product) {
+      byId[product.identifier] = {
+        'productId': product.identifier,
+        'priceString': product.priceString,
+        'currencyCode': product.currencyCode,
+      };
+    }
+
+    bool wantPrice(String id) {
+      return SubscriptionConfig.isTipProduct(id) ||
+          SubscriptionConfig.isAiPackProduct(id) ||
+          id == SubscriptionConfig.productId ||
+          id.startsWith('${SubscriptionConfig.productId}:');
+    }
+
     try {
       final offerings = await Purchases.getOfferings();
       for (final offering in offerings.all.values) {
         for (final package in offering.availablePackages) {
           final product = package.storeProduct;
-          if (!SubscriptionConfig.isTipProduct(product.identifier)) continue;
-          byId[product.identifier] = {
-            'productId': product.identifier,
-            'priceString': product.priceString,
-            'currencyCode': product.currencyCode,
-          };
+          if (!wantPrice(product.identifier)) continue;
+          putProduct(product);
         }
       }
     } catch (e, st) {
-      debugPrint('[tip] offerings price lookup failed: $e\n$st');
+      debugPrint('[iap] offerings price lookup failed: $e\n$st');
     }
 
-    final missing = SubscriptionConfig.tipProductIds
-        .where((id) => !byId.containsKey(id))
-        .toList();
-    if (missing.isNotEmpty) {
+    final missingConsumables = <String>[
+      ...SubscriptionConfig.tipProductIds,
+      ...SubscriptionConfig.aiPackProductIds,
+    ].where((id) => !byId.keys.any((k) => k == id || k.startsWith('$id:'))).toList();
+
+    if (missingConsumables.isNotEmpty) {
       try {
         final products = await Purchases.getProducts(
-          missing,
+          missingConsumables,
           productCategory: ProductCategory.nonSubscription,
         );
         for (final product in products) {
-          byId[product.identifier] = {
-            'productId': product.identifier,
-            'priceString': product.priceString,
-            'currencyCode': product.currencyCode,
-          };
+          putProduct(product);
         }
       } catch (e, st) {
-        debugPrint('[tip] getProducts price lookup failed: $e\n$st');
+        debugPrint('[iap] getProducts(consumable) price lookup failed: $e\n$st');
       }
     }
 
-    // 앱이 기대하는 순서로 정렬
+    final hasSub = byId.keys.any(
+      (k) =>
+          k == SubscriptionConfig.productId ||
+          k.startsWith('${SubscriptionConfig.productId}:'),
+    );
+    if (!hasSub) {
+      try {
+        final products = await Purchases.getProducts(
+          [SubscriptionConfig.productId],
+          productCategory: ProductCategory.subscription,
+        );
+        for (final product in products) {
+          putProduct(product);
+        }
+      } catch (e, st) {
+        debugPrint('[iap] getProducts(subscription) price lookup failed: $e\n$st');
+      }
+    }
+
+    // 앱이 기대하는 순서로 정렬 (츄르 → AI팩 → 구독)
+    final orderedIds = <String>[
+      ...SubscriptionConfig.tipProductIds,
+      ...SubscriptionConfig.aiPackProductIds,
+      SubscriptionConfig.productId,
+    ];
     final ordered = <Map<String, String>>[];
-    for (final id in SubscriptionConfig.tipProductIds) {
-      final row = byId[id];
-      if (row != null) ordered.add(row);
+    final used = <String>{};
+    for (final id in orderedIds) {
+      final exact = byId[id];
+      if (exact != null) {
+        ordered.add(exact);
+        used.add(id);
+        continue;
+      }
+      for (final entry in byId.entries) {
+        if (entry.key.startsWith('$id:') && !used.contains(entry.key)) {
+          ordered.add({
+            'productId': id,
+            'priceString': entry.value['priceString'] ?? '',
+            'currencyCode': entry.value['currencyCode'] ?? '',
+          });
+          used.add(entry.key);
+          break;
+        }
+      }
     }
     for (final entry in byId.entries) {
-      if (!SubscriptionConfig.tipProductIds.contains(entry.key)) {
+      if (!used.contains(entry.key)) {
         ordered.add(entry.value);
       }
     }
 
-    debugPrint('[tip] products for web: $ordered');
+    debugPrint('[iap] store prices for web: $ordered');
     await WebViewHost.instance.dispatchTipProducts(products: ordered);
   }
 

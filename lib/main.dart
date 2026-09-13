@@ -428,7 +428,10 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
     setState(() => _bannerGraceElapsed = false);
     final remaining = await bannerGraceRemaining();
     if (remaining != null) {
-      debugPrint('[ads] banner grace remaining: ${remaining.inMinutes}m ${remaining.inSeconds % 60}s');
+      debugPrint(
+        '[ads] banner grace remaining: ${remaining.inDays}d '
+        '${remaining.inHours % 24}h',
+      );
       _bannerGraceTimer = Timer(remaining, () {
         if (!mounted) return;
         setState(() => _bannerGraceElapsed = true);
@@ -446,8 +449,10 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
       ''');
       final text = raw.toString().replaceAll('"', '').toLowerCase();
       if (text.contains('hide') && diaryAppBar.value.visible) {
-        diaryAppBar.value = const DiaryAppBarState(
+        final prev = diaryAppBar.value;
+        diaryAppBar.value = DiaryAppBarState(
           visible: false,
+          showBanner: prev.showBanner,
           showMenu: false,
         );
       }
@@ -462,12 +467,18 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
     final hideChrome = !diaryAppBar.value.visible;
     final top = hideChrome ? padding.top : 0.0;
     final bottom = padding.bottom;
+    final showBannerSlot = diaryAppBar.value.showBanner &&
+        _bannerGraceElapsed &&
+        !SubscriptionService.instance.activeNotifier.value;
+    final bannerH =
+        showBannerSlot ? AdSize.banner.height.toDouble() : 0.0;
     try {
       await _controller.runJavaScript('''
         (function(){
           var r = document.documentElement.style;
           r.setProperty('--diary-safe-top', '${top}px');
           r.setProperty('--diary-safe-bottom', '${bottom}px');
+          r.setProperty('--diary-banner-height', '${bannerH}px');
         })();
       ''');
     } catch (e) {
@@ -658,7 +669,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
                             color: theme.accent.withOpacity(0.12),
                           ),
                         ),
-                        title: header.showSave || centeredHeader
+                        title: header.showSave
+                            ? null
+                            : centeredHeader
                             ? Text(
                                 header.label,
                                 maxLines: 1,
@@ -937,9 +950,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
                           ],
                         ),
                       ),
-                      // Flutter AppBar 쓰는 화면(홈·쓰기)만 배너 자리 예약.
-                      // 친구방·상세(웹 툴바)에서는 넣지 않음 → 웹/앱 크롬 겹침·이중 배너 방지
-                      if (header.visible &&
+                      // 무료 사용자 하단 배너 — AppBar와 무관하게 showBanner 화면에서
+                      // WebView 아래 자리 예약 → 콘텐츠가 배너 높이만큼 위로 올라감
+                      if (header.showBanner &&
                           _bannerGraceElapsed &&
                           !SubscriptionService.instance.activeNotifier.value)
                         SizedBox(

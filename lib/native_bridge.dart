@@ -21,6 +21,7 @@ const kDiaryFilesChannel = MethodChannel('diary/files');
 class DiaryAppBarState {
   const DiaryAppBarState({
     this.visible = false,
+    this.showBanner = false,
     this.showCalendar = false,
     this.showBack = false,
     this.showSave = false,
@@ -32,6 +33,8 @@ class DiaryAppBarState {
   });
 
   final bool visible;
+  /// 무료 사용자 하단 배너 — AppBar(visible)와 별개 (PageBy·쓰기·상세 포함)
+  final bool showBanner;
   final bool showCalendar;
   final bool showBack;
   final bool showSave;
@@ -71,6 +74,10 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     if (type == 'headerState') {
       final next = DiaryAppBarState(
         visible: data['visible'] == true,
+        // 구버전 웹: showBanner 없으면 AppBar 보일 때만 배너
+        showBanner: data.containsKey('showBanner')
+            ? data['showBanner'] == true
+            : data['visible'] == true,
         showCalendar: data['showCalendar'] == true,
         showBack: data['showBack'] == true,
         showSave: data['showSave'] == true,
@@ -81,8 +88,8 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         saveEnabled: data['saveEnabled'] != false,
       );
       debugPrint(
-        '[headerState] visible=${next.visible} back=${next.showBack} '
-        'label="${next.label}"',
+        '[headerState] visible=${next.visible} banner=${next.showBanner} '
+        'back=${next.showBack} label="${next.label}"',
       );
       diaryAppBar.value = next;
       return;
