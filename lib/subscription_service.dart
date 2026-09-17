@@ -78,13 +78,17 @@ class SubscriptionService {
     }
   }
 
-  Future<void> purchaseMonthly() async {
+  Future<void> purchaseSubscription({String? productId}) async {
     if (!_configured) {
       throw PlatformException(
         code: 'not_configured',
         message: 'RevenueCat is not configured',
       );
     }
+
+    final wantId = (productId == null || productId.trim().isEmpty)
+        ? SubscriptionConfig.monthlyProductId
+        : productId.trim();
 
     // 이미 활성 구독이면 Play "이미 가입됨" 시트 대신 Pro만 동기화
     if (await _refreshAndPushIfPremium(reason: 'pre-purchase')) {
@@ -96,12 +100,19 @@ class SubscriptionService {
     Package? package;
     if (current != null) {
       for (final p in current.availablePackages) {
-        if (p.storeProduct.identifier == SubscriptionConfig.productId) {
+        if (p.storeProduct.identifier == wantId ||
+            p.storeProduct.identifier.startsWith('$wantId:')) {
           package = p;
           break;
         }
       }
-      package ??= current.monthly;
+      if (package == null) {
+        if (wantId == SubscriptionConfig.yearlyProductId) {
+          package = current.annual;
+        } else if (wantId == SubscriptionConfig.monthlyProductId) {
+          package = current.monthly;
+        }
+      }
       if (package == null && current.availablePackages.isNotEmpty) {
         package = current.availablePackages.first;
       }
@@ -110,7 +121,8 @@ class SubscriptionService {
     if (package == null) {
       throw PlatformException(
         code: 'no_package',
-        message: 'No subscription package found in RevenueCat offerings',
+        message:
+            'No subscription package found for $wantId in RevenueCat offerings',
       );
     }
 
@@ -148,6 +160,9 @@ class SubscriptionService {
     }
   }
 
+  /// 하위 호환
+  Future<void> purchaseMonthly() => purchaseSubscription();
+
   /// 츄르·AI 팩·구독 스토어 가격 조회 (현지 통화 priceString)
   Future<void> fetchTipProducts() async {
     if (!_configured) {
@@ -168,8 +183,7 @@ class SubscriptionService {
     bool wantPrice(String id) {
       return SubscriptionConfig.isTipProduct(id) ||
           SubscriptionConfig.isAiPackProduct(id) ||
-          id == SubscriptionConfig.productId ||
-          id.startsWith('${SubscriptionConfig.productId}:');
+          SubscriptionConfig.isSubscriptionProduct(id);
     }
 
     try {
@@ -205,14 +219,12 @@ class SubscriptionService {
     }
 
     final hasSub = byId.keys.any(
-      (k) =>
-          k == SubscriptionConfig.productId ||
-          k.startsWith('${SubscriptionConfig.productId}:'),
+      (k) => SubscriptionConfig.isSubscriptionProduct(k),
     );
     if (!hasSub) {
       try {
         final products = await Purchases.getProducts(
-          [SubscriptionConfig.productId],
+          SubscriptionConfig.subscriptionProductIds,
           productCategory: ProductCategory.subscription,
         );
         for (final product in products) {
@@ -227,7 +239,7 @@ class SubscriptionService {
     final orderedIds = <String>[
       ...SubscriptionConfig.tipProductIds,
       ...SubscriptionConfig.aiPackProductIds,
-      SubscriptionConfig.productId,
+      ...SubscriptionConfig.subscriptionProductIds,
     ];
     final ordered = <Map<String, String>>[];
     final used = <String>{};

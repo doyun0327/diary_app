@@ -185,15 +185,37 @@ Future<void> showSavedFileNotification(String uri, String mime) async {
 }
 
 void _showForeground(RemoteMessage message) {
-  final title = message.notification?.title ?? message.data['title'] ?? 'PageBy';
-  final body =
-      message.notification?.body ?? message.data['body'] ?? '';
+  final title = (message.notification?.title ??
+          message.data['title']?.toString() ??
+          '')
+      .trim();
+  final body = (message.notification?.body ??
+          message.data['body']?.toString() ??
+          message.data['pushBody']?.toString() ??
+          '')
+      .trim();
+
+  // 본문 없는 "pageBy" 알림은 만들지 않음.
+  // (OEM이 FCM 시스템 알림 + 로컬 알림을 같이 띄운 뒤,
+  //  내용 있는 쪽을 밀면 빈 알림만 남는 현상 방지)
+  if (body.isEmpty) {
+    debugPrint(
+      '[push] skip empty foreground notification '
+      'title="$title" data=${message.data}',
+    );
+    return;
+  }
+
+  final displayTitle = title.isEmpty ? 'pageBy' : title;
   final payload = _dataFromMessage(message);
+  final id = _notificationIdFor(message);
+  final tag = _notificationTagFor(message);
+
   _local.show(
-    message.hashCode,
-    title,
+    id,
+    displayTitle,
     body,
-    const NotificationDetails(
+    NotificationDetails(
       android: AndroidNotificationDetails(
         kDiaryPushChannelId,
         '친구 방',
@@ -201,10 +223,33 @@ void _showForeground(RemoteMessage message) {
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
+        autoCancel: true,
+        tag: tag,
       ),
     ),
     payload: payload == null ? null : jsonEncode(payload),
   );
+}
+
+/// 같은 방/게시글 알림은 덮어써서 스택·빈 요약 알림을 줄임
+int _notificationIdFor(RemoteMessage message) {
+  final roomId = message.data['roomId']?.toString() ?? '';
+  final postId = message.data['postId']?.toString() ?? '';
+  final type = message.data['type']?.toString() ?? '';
+  final key = '$type|$roomId|$postId';
+  if (key == '||') {
+    final mid = message.messageId;
+    if (mid != null && mid.isNotEmpty) return mid.hashCode & 0x7fffffff;
+    return message.hashCode & 0x7fffffff;
+  }
+  return key.hashCode & 0x7fffffff;
+}
+
+String? _notificationTagFor(RemoteMessage message) {
+  final roomId = message.data['roomId']?.toString().trim() ?? '';
+  final postId = message.data['postId']?.toString().trim() ?? '';
+  if (roomId.isEmpty) return null;
+  return postId.isEmpty ? 'room_$roomId' : 'room_${roomId}_$postId';
 }
 
 Map<String, String>? _dataFromMessage(RemoteMessage message) {

@@ -106,8 +106,11 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       return;
     }
     if (type == 'subscriptionPurchase') {
+      final productId = (data['productId'] as String?)?.trim();
       try {
-        await SubscriptionService.instance.purchaseMonthly();
+        await SubscriptionService.instance.purchaseSubscription(
+          productId: productId,
+        );
       } catch (e, st) {
         debugPrint('subscription purchase failed: $e\n$st');
       } finally {

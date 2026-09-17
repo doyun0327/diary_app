@@ -39,6 +39,25 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- 친구방 초대: https://…/join?code=… (앱 설치 시) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="pageby-diary.idoyun781.workers.dev"
+                    android:pathPrefix="/join"/>
+            </intent-filter>
+            <!-- 커스텀 스킴: pageby://join?code=… (브라우저 폴백) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="pageby"
+                    android:host="join"/>
+            </intent-filter>
         </activity>
         <meta-data
             android:name="flutterEmbedding"

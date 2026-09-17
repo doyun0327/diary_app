@@ -12,6 +12,7 @@ import 'banner_install_gate.dart';
 import 'file_chooser.dart';
 import 'google_auth_native.dart';
 import 'google_sign_in_screen.dart';
+import 'invite_links.dart';
 import 'native_bridge.dart';
 import 'push_service.dart';
 import 'rewarded_ad_service.dart';
@@ -395,6 +396,8 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
               WebViewHost.instance.controller = _controller;
               diaryPush.controller = _controller;
               diaryPush.flushPending();
+              diaryInvite.controller = _controller;
+              await diaryInvite.flushPending();
               await WebViewHost.instance.markFlutter();
               await _syncHeaderFromWeb();
               if (mounted) await _pushSafeAreaInsets(context);
@@ -414,6 +417,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
     WebViewHost.instance.controller = _controller;
     attachAndroidFileChooser(_controller);
     unawaited(_initBannerGrace());
+    unawaited(diaryInvite.start());
   }
 
   Future<void> _initBannerGrace() async {
@@ -492,6 +496,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
     googleSignInRequests.removeListener(_onGoogleSignInRequested);
     SubscriptionService.instance.activeNotifier.removeListener(_onSubscriptionChanged);
     RewardedAdService.instance.readyNotifier.removeListener(_onSubscriptionChanged);
+    diaryInvite.dispose();
     _bannerGraceTimer?.cancel();
     _stopAutoRetry();
     _stopOfflinePoll();
