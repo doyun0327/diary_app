@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// 설치(첫 실행) 후 이 기간이 지나야 배너 광고 표시
-const Duration kBannerGracePeriod = Duration(days: 3);
+/// 설치 직후부터 무료 사용자 하단 배너 표시 (유예 없음)
+const Duration kBannerGracePeriod = Duration.zero;
 
 DateTime? _cachedGraceStart;
 
@@ -35,7 +35,7 @@ Future<bool> isBannerGraceElapsed() async {
   final elapsed = DateTime.now().difference(start) >= kBannerGracePeriod;
   debugPrint(
     '[ads] banner grace elapsed=$elapsed '
-    '(started $start, period ${kBannerGracePeriod.inDays}d)',
+    '(started $start, period ${kBannerGracePeriod.inDays}d / ${kBannerGracePeriod.inSeconds}s)',
   );
   return elapsed;
 }
