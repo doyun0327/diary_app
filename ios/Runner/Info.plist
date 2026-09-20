@@ -62,6 +62,10 @@
 	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>일기 그림 생성과 프로필 사진에 앨범 사진을 사용합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>만든 그림을 사진첩에 저장할 때 사용합니다.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
