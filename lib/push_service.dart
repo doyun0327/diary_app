@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -12,6 +13,7 @@ import 'native_bridge.dart';
 
 const kDiaryPushChannelId = 'diary_room';
 const kDiaryDownloadChannelId = 'diary_download';
+const kDiaryAiDrawChannelId = 'diary_ai_draw';
 
 final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
 
@@ -58,7 +60,54 @@ class DiaryPushBridge {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // 백그라운드는 FCM notification 페이로드로 시스템 알림이 뜹니다.
+  // AI 그림 완료는 data-only 로 오므로, 백그라운드에서만 로컬 알림 표시
+  final type = message.data['type']?.toString() ?? '';
+  if (type != 'ai_draw_done') {
+    // 그 외(방 알림 등)는 notification 페이로드로 시스템 알림
+    return;
+  }
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    final title = (message.data['title'] ?? '그림이 완성되었어요!').toString();
+    final body = (message.data['body'] ?? '그림을 확인해 보세요.💛').toString();
+    final plugin = FlutterLocalNotificationsPlugin();
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    await plugin.initialize(const InitializationSettings(android: androidInit));
+    const channel = AndroidNotificationChannel(
+      kDiaryAiDrawChannelId,
+      'AI 그림',
+      description: '그림 완성 알림',
+      importance: Importance.high,
+    );
+    await plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
+    await plugin.show(
+      DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          kDiaryAiDrawChannelId,
+          'AI 그림',
+          channelDescription: '그림 완성 알림',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: jsonEncode({'type': 'ai_draw_done'}),
+    );
+  } catch (e, st) {
+    debugPrint('[push] ai_draw_done background notify failed: $e\n$st');
+  }
 }
 
 Future<void> initDiaryPush() async {
@@ -98,7 +147,20 @@ Future<void> initDiaryPush() async {
       >()
       ?.createNotificationChannel(downloadChannel);
 
+  const aiDrawChannel = AndroidNotificationChannel(
+    kDiaryAiDrawChannelId,
+    'AI 그림',
+    description: '그림 완성 알림',
+    importance: Importance.high,
+  );
+  await _local
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(aiDrawChannel);
+
   savedFileNotice = showSavedFileNotification;
+  aiDrawCompleteNotice = showAiDrawCompleteNotification;
 
   final notif = await Permission.notification.request();
   if (!notif.isGranted) {
@@ -184,7 +246,39 @@ Future<void> showSavedFileNotification(String uri, String mime) async {
   );
 }
 
+Future<void> showAiDrawCompleteNotification(String title, String body) async {
+  await _local.show(
+    DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
+    title,
+    body,
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        kDiaryAiDrawChannelId,
+        'AI 그림',
+        channelDescription: '그림 완성 알림',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    ),
+    payload: jsonEncode({'type': 'aiDrawComplete'}),
+  );
+}
+
 void _showForeground(RemoteMessage message) {
+  final type = message.data['type']?.toString() ?? '';
+  // AI 그림 완료: 포그라운드면 쓰기 화면에서 이미 결과를 보여 주므로 알림 생략
+  // (백그라운드/종료는 FCM notification 페이로드로 시스템 알림)
+  if (type == 'ai_draw_done') {
+    debugPrint('[push] skip foreground ai_draw_done');
+    return;
+  }
+
   final title = (message.notification?.title ??
           message.data['title']?.toString() ??
           '')

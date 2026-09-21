@@ -52,6 +52,7 @@ final GlobalKey<ScaffoldMessengerState> diaryMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
 void Function(String uri, String mime)? savedFileNotice;
+Future<void> Function(String title, String body)? aiDrawCompleteNotice;
 
 Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
   // 릴리스에서도 logcat에 보이도록 print 사용 (debugPrint는 필터에 안 잡힐 수 있음)
@@ -179,6 +180,20 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
       await WebViewHost.instance.dispatchRewardedAdResult(ok: ok, reason: reason);
       if (!ok) {
         // 웹 쪽에서 모달로 안내 (중복 스낵 방지)
+      }
+      return;
+    }
+    if (type == 'aiDrawComplete') {
+      final title = (data['title'] as String?)?.trim();
+      final body = (data['body'] as String?)?.trim();
+      final notify = aiDrawCompleteNotice;
+      if (notify != null) {
+        await notify(
+          title == null || title.isEmpty ? '그림이 완성되었어요!' : title,
+          body == null || body.isEmpty
+              ? '그림을 확인해 보세요.💛'
+              : body,
+        );
       }
       return;
     }
