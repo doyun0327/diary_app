@@ -67,4 +67,6 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     // WorkManagerInitializer 크래시 완화 (google_mobile_ads 등 transitive)
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    // registerForActivityResult (갤러리 픽커)
+    implementation("androidx.activity:activity-ktx:1.9.3")
 }

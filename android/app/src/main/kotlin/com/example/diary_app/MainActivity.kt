@@ -7,13 +7,40 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.IOException
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
+    private var pendingGalleryPick: MethodChannel.Result? = null
+
+    private val pickGalleryImage = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { activityResult: ActivityResult ->
+        val result = pendingGalleryPick
+        pendingGalleryPick = null
+        if (result == null) return@registerForActivityResult
+        if (activityResult.resultCode != RESULT_OK) {
+            result.success(null)
+            return@registerForActivityResult
+        }
+        val uri = activityResult.data?.data
+        if (uri == null) {
+            result.success(null)
+            return@registerForActivityResult
+        }
+        try {
+            result.success(copyUriToCache(uri))
+        } catch (e: Exception) {
+            result.error("PICK_FAILED", e.message, null)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
@@ -52,9 +79,49 @@ class MainActivity : FlutterActivity() {
                             result.error("OPEN_FAILED", e.message, null)
                         }
                     }
+                    "pickGalleryImage" -> {
+                        if (pendingGalleryPick != null) {
+                            result.error("BUSY", "picker already open", null)
+                            return@setMethodCallHandler
+                        }
+                        pendingGalleryPick = result
+                        // 기기 갤러리 앱을 직접 연다 → 카톡/다운로드 등 갤러리에 있는 사진 전부
+                        val intent = Intent(
+                            Intent.ACTION_PICK,
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                        ).apply {
+                            type = "image/*"
+                        }
+                        try {
+                            pickGalleryImage.launch(intent)
+                        } catch (e: Exception) {
+                            pendingGalleryPick = null
+                            result.error("PICK_FAILED", e.message, null)
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun copyUriToCache(uri: Uri): String {
+        val resolver = contentResolver
+        val mime = resolver.getType(uri) ?: "image/jpeg"
+        val ext = when {
+            mime.contains("png") -> "png"
+            mime.contains("webp") -> "webp"
+            mime.contains("gif") -> "gif"
+            mime.contains("heic") || mime.contains("heif") -> "heic"
+            else -> "jpg"
+        }
+        val out = File(cacheDir, "gallery_pick_${System.currentTimeMillis()}.$ext")
+        resolver.openInputStream(uri)?.use { input ->
+            out.outputStream().use { output -> input.copyTo(output) }
+        } ?: throw IOException("Cannot open gallery uri")
+        if (!out.exists() || out.length() == 0L) {
+            throw IOException("Empty gallery file")
+        }
+        return out.absolutePath
     }
 
     private fun saveToDownloads(name: String, mime: String, bytes: ByteArray): String {
