@@ -1,10 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -15,9 +17,65 @@ const kDiaryPushChannelId = 'diary_room';
 const kDiaryDownloadChannelId = 'diary_download';
 const kDiaryAiDrawChannelId = 'diary_ai_draw';
 
+/// 메인 isolate + 백그라운드 FCM isolate가 공유하는 가시성 플래그 파일명
+const _kVisibilityFile = 'diary_app_visibility.txt';
+
 final FlutterLocalNotificationsPlugin _local = FlutterLocalNotificationsPlugin();
 
 final DiaryPushBridge diaryPush = DiaryPushBridge();
+
+/// 메인 isolate 전용 — WidgetsBinding lifecycle 미러
+AppLifecycleState _appLifecycle = AppLifecycleState.resumed;
+
+/// 앱이 화면에 보이며 입력 가능한지 (알림 생략 대상)
+bool get diaryAppIsForeground {
+  final s = _appLifecycle;
+  return s == AppLifecycleState.resumed || s == AppLifecycleState.inactive;
+}
+
+/// [main] / WebView 페이지의 WidgetsBindingObserver 에서 호출
+void updateDiaryAppLifecycle(AppLifecycleState state) {
+  _appLifecycle = state;
+  unawaited(_persistAppVisibility(diaryAppIsForeground));
+  debugPrint('[push] lifecycle=$state foreground=$diaryAppIsForeground');
+}
+
+Future<File> _visibilityFile() async {
+  final dir = await getApplicationSupportDirectory();
+  return File('${dir.path}/$_kVisibilityFile');
+}
+
+Future<void> _persistAppVisibility(bool foreground) async {
+  try {
+    final f = await _visibilityFile();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await f.writeAsString(foreground ? '1:$now' : '0:$now', flush: true);
+  } catch (e) {
+    debugPrint('[push] persist visibility failed: $e');
+  }
+}
+
+/// 백그라운드 isolate용. foreground 이고 기록이 아주 최근이면 true.
+Future<bool> _shouldSkipAiDrawNotifyInBackgroundIsolate() async {
+  try {
+    final f = await _visibilityFile();
+    if (!await f.exists()) return false;
+    final raw = (await f.readAsString()).trim();
+    final parts = raw.split(':');
+    if (parts.isEmpty || parts[0] != '1') return false;
+    final at = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+    final ageMs = DateTime.now().millisecondsSinceEpoch - at;
+    // 강제종료 직후 stale '1' 방지: 최근 수초만 포그라운드로 인정
+    if (ageMs >= 0 && ageMs < 8_000) {
+      debugPrint('[push] bg skip ai_draw_done — marked foreground ageMs=$ageMs');
+      return true;
+    }
+    return false;
+  } catch (e) {
+    debugPrint('[push] read visibility failed: $e');
+    return false;
+  }
+}
 
 class DiaryPushBridge {
   WebViewController? controller;
@@ -60,54 +118,59 @@ class DiaryPushBridge {
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // AI 그림 완료는 data-only 로 오므로, 백그라운드에서만 로컬 알림 표시
   final type = message.data['type']?.toString() ?? '';
   if (type != 'ai_draw_done') {
-    // 그 외(방 알림 등)는 notification 페이로드로 시스템 알림
     return;
   }
   try {
     WidgetsFlutterBinding.ensureInitialized();
+    if (await _shouldSkipAiDrawNotifyInBackgroundIsolate()) {
+      return;
+    }
     final title = (message.data['title'] ?? '그림이 완성되었어요!').toString();
     final body = (message.data['body'] ?? '그림을 확인해 보세요.💛').toString();
-    final plugin = FlutterLocalNotificationsPlugin();
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await plugin.initialize(const InitializationSettings(android: androidInit));
-    const channel = AndroidNotificationChannel(
-      kDiaryAiDrawChannelId,
-      'AI 그림',
-      description: '그림 완성 알림',
-      importance: Importance.high,
-    );
-    await plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
-    await plugin.show(
-      DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
-      title,
-      body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          kDiaryAiDrawChannelId,
-          'AI 그림',
-          channelDescription: '그림 완성 알림',
-          importance: Importance.high,
-          priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
-        ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-      payload: jsonEncode({'type': 'ai_draw_done'}),
-    );
+    await _showAiDrawDoneLocal(title, body);
   } catch (e, st) {
     debugPrint('[push] ai_draw_done background notify failed: $e\n$st');
   }
+}
+
+Future<void> _showAiDrawDoneLocal(String title, String body) async {
+  final plugin = FlutterLocalNotificationsPlugin();
+  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+  await plugin.initialize(const InitializationSettings(android: androidInit));
+  const channel = AndroidNotificationChannel(
+    kDiaryAiDrawChannelId,
+    'AI 그림',
+    description: '그림 완성 알림',
+    importance: Importance.high,
+  );
+  await plugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+  await plugin.show(
+    DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
+    title,
+    body,
+    const NotificationDetails(
+      android: AndroidNotificationDetails(
+        kDiaryAiDrawChannelId,
+        'AI 그림',
+        channelDescription: '그림 완성 알림',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    ),
+    payload: jsonEncode({'type': 'ai_draw_done'}),
+  );
+  debugPrint('[push] showed ai_draw_done local notification');
 }
 
 Future<void> initDiaryPush() async {
@@ -131,8 +194,7 @@ Future<void> initDiaryPush() async {
   );
   await _local
       .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
+          AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
 
   const downloadChannel = AndroidNotificationChannel(
@@ -143,8 +205,7 @@ Future<void> initDiaryPush() async {
   );
   await _local
       .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
+          AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(downloadChannel);
 
   const aiDrawChannel = AndroidNotificationChannel(
@@ -155,12 +216,15 @@ Future<void> initDiaryPush() async {
   );
   await _local
       .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
+          AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(aiDrawChannel);
 
   savedFileNotice = showSavedFileNotification;
   aiDrawCompleteNotice = showAiDrawCompleteNotification;
+
+  // 최초 상태를 포그라운드로 기록 (백그라운드 isolate와 동기)
+  _appLifecycle = AppLifecycleState.resumed;
+  await _persistAppVisibility(true);
 
   final notif = await Permission.notification.request();
   if (!notif.isGranted) {
@@ -247,6 +311,11 @@ Future<void> showSavedFileNotification(String uri, String mime) async {
 }
 
 Future<void> showAiDrawCompleteNotification(String title, String body) async {
+  // 웹→네이티브 경로: lifecycle 기준으로만 표시
+  if (diaryAppIsForeground) {
+    debugPrint('[push] skip native aiDrawComplete — app foreground');
+    return;
+  }
   await _local.show(
     DateTime.now().millisecondsSinceEpoch & 0x7fffffff,
     title,
@@ -272,10 +341,21 @@ Future<void> showAiDrawCompleteNotification(String title, String body) async {
 
 void _showForeground(RemoteMessage message) {
   final type = message.data['type']?.toString() ?? '';
-  // AI 그림 완료: 포그라운드면 쓰기 화면에서 이미 결과를 보여 주므로 알림 생략
-  // (백그라운드/종료는 FCM notification 페이로드로 시스템 알림)
   if (type == 'ai_draw_done') {
-    debugPrint('[push] skip foreground ai_draw_done');
+    // FCM이 onMessage로 넣어도, 실제 lifecycle이 백그라운드면 알림 표시
+    final bindingState = WidgetsBinding.instance.lifecycleState;
+    final fg = diaryAppIsForeground ||
+        bindingState == AppLifecycleState.resumed ||
+        bindingState == AppLifecycleState.inactive;
+    if (fg) {
+      debugPrint(
+        '[push] skip foreground ai_draw_done lifecycle=$_appLifecycle binding=$bindingState',
+      );
+      return;
+    }
+    final title = (message.data['title'] ?? '그림이 완성되었어요!').toString();
+    final body = (message.data['body'] ?? '그림을 확인해 보세요.💛').toString();
+    unawaited(_showAiDrawDoneLocal(title, body));
     return;
   }
 
@@ -289,9 +369,6 @@ void _showForeground(RemoteMessage message) {
           '')
       .trim();
 
-  // 본문 없는 "pageBy" 알림은 만들지 않음.
-  // (OEM이 FCM 시스템 알림 + 로컬 알림을 같이 띄운 뒤,
-  //  내용 있는 쪽을 밀면 빈 알림만 남는 현상 방지)
   if (body.isEmpty) {
     debugPrint(
       '[push] skip empty foreground notification '
@@ -313,7 +390,7 @@ void _showForeground(RemoteMessage message) {
       android: AndroidNotificationDetails(
         kDiaryPushChannelId,
         '친구 방',
-        channelDescription: '일기 공유와 댓글 알림',
+        channelDescription: '친구 방 알림',
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
@@ -325,7 +402,6 @@ void _showForeground(RemoteMessage message) {
   );
 }
 
-/// 같은 방/게시글 알림은 덮어써서 스택·빈 요약 알림을 줄임
 int _notificationIdFor(RemoteMessage message) {
   final roomId = message.data['roomId']?.toString() ?? '';
   final postId = message.data['postId']?.toString() ?? '';

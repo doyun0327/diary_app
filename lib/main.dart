@@ -223,6 +223,7 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    updateDiaryAppLifecycle(state);
     if (state == AppLifecycleState.resumed) {
       unawaited(_refreshOfflineBanner());
     }
