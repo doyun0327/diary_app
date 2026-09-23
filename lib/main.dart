@@ -24,8 +24,8 @@ import 'webview_host.dart';
 /// 배포 앱: Cloudflare Workers URL (아래 prod) 또는
 ///   flutter build appbundle --dart-define=DIARY_WEB_URL=https://...
 const String _kDiaryWebUrlDev = 'http://127.0.0.1:5173';
-/// `npm run deploy` 후 나온 workers.dev / 커스텀 도메인 (끝 `/` 없이)
-const String _kDiaryWebUrlProd = 'https://pageby-diary.idoyun781.workers.dev';
+/// `npm run deploy` 후 나온 커스텀 도메인 (끝 `/` 없이)
+const String _kDiaryWebUrlProd = 'https://pageby.stream';
 
 String get kDiaryWebUrl {
   const fromDefine = String.fromEnvironment('DIARY_WEB_URL');
