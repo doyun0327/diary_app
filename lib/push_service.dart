@@ -226,6 +226,9 @@ Future<void> initDiaryPush() async {
   _appLifecycle = AppLifecycleState.resumed;
   await _persistAppVisibility(true);
 
+  // Android 13+: POST_NOTIFICATIONS 한 번만 요청.
+  // permission_handler 와 FCM requestPermission 을 연속 호출하면
+  // "허용 안 함" 후에도 시스템 다이얼로그가 한 번 더 뜬다.
   final notif = await Permission.notification.request();
   if (!notif.isGranted) {
     debugPrint('[push] notification permission denied');
@@ -251,11 +254,15 @@ Future<void> initDiaryPush() async {
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+  // iOS/macOS 만 APNs alert/badge/sound 권한 요청.
+  // Android 는 위에서 Permission.notification 으로 이미 처리함.
+  if (Platform.isIOS || Platform.isMacOS) {
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  }
 
   try {
     diaryPush.token = await FirebaseMessaging.instance.getToken();
