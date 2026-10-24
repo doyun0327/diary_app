@@ -41,6 +41,26 @@ class WebViewHost {
     ''');
   }
 
+  Future<void> dispatchAppleCredential(Map<String, Object?> credential) async {
+    final payload = jsonEncode(credential);
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryAppleCredential === 'function') {
+        window.__onDiaryAppleCredential($payload);
+      }
+    ''');
+  }
+
+  Future<void> dispatchAppleSignInError(String reason) async {
+    final payload = jsonEncode(reason);
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiaryAppleSignInError === 'function') {
+        window.__onDiaryAppleSignInError($payload);
+      }
+    ''');
+  }
+
   Future<void> dispatchSubscriptionStatus({
     required bool active,
     int? expiresAtMs,

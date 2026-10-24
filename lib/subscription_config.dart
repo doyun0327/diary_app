@@ -12,7 +12,7 @@ class SubscriptionConfig {
   /// RevenueCat Public API Key (App Store 앱)
   static const appleApiKey = String.fromEnvironment(
     'REVENUECAT_APPLE_KEY',
-    defaultValue: 'appl_REPLACE_ME',
+    defaultValue: 'appl_shEiweOdUQBRoINJdjWscLGktet',
   );
 
   /// RevenueCat Entitlement ID

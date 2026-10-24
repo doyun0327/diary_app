@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'apple_auth_native.dart';
 import 'google_auth_native.dart';
 import 'rewarded_ad_service.dart';
 import 'subscription_service.dart';
@@ -70,6 +71,10 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     }
     if (type == 'googleSignOut') {
       await nativeGoogleSignOut();
+      return;
+    }
+    if (type == 'appleSignIn') {
+      await runNativeAppleSignIn();
       return;
     }
     if (type == 'headerState') {

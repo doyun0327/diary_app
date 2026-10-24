@@ -116,10 +116,16 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
   /// AdMob 콘솔에서 만든 실제 배너 단위 ID를 넣으세요. (앱: ca-app-pub-4752729386590212~2783667278)
   /// 비어 있으면 릴리스에서 배너가 표시되지 않습니다.
   static const _androidProdBannerId = 'ca-app-pub-4752729386590212/5989921712';
+  static const _iosTestBannerId = 'ca-app-pub-3940256099942544/2934735716';
+  /// iOS 앱: ca-app-pub-4752729386590212~5570330297
+  static const _iosProdBannerId = 'ca-app-pub-4752729386590212/1582983825';
 
   String? _bannerUnitId() {
     const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
     if (fromDefine.isNotEmpty) return fromDefine;
+    if (Platform.isIOS) {
+      return kReleaseMode ? _iosProdBannerId : _iosTestBannerId;
+    }
     if (!kReleaseMode) return _androidTestBannerId;
     if (_androidProdBannerId.isNotEmpty) return _androidProdBannerId;
     return null;
