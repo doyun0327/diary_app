@@ -137,8 +137,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> _showAiDrawDoneLocal(String title, String body) async {
   final plugin = FlutterLocalNotificationsPlugin();
-  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-  await plugin.initialize(const InitializationSettings(android: androidInit));
+  await plugin.initialize(_kLocalInitSettings);
   const channel = AndroidNotificationChannel(
     kDiaryAiDrawChannelId,
     'AI 그림',
@@ -173,10 +172,20 @@ Future<void> _showAiDrawDoneLocal(String title, String body) async {
   debugPrint('[push] showed ai_draw_done local notification');
 }
 
+/// iOS 설정이 없으면 initialize 가 예외를 던져 initDiaryPush 전체(FCM 토큰 포함)가 중단됨.
+/// 권한 요청은 아래 FirebaseMessaging.requestPermission 에서 한 번만 하도록 여기선 끔.
+const _kLocalInitSettings = InitializationSettings(
+  android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+  iOS: DarwinInitializationSettings(
+    requestAlertPermission: false,
+    requestBadgePermission: false,
+    requestSoundPermission: false,
+  ),
+);
+
 Future<void> initDiaryPush() async {
-  const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
   await _local.initialize(
-    const InitializationSettings(android: androidInit),
+    _kLocalInitSettings,
     onDidReceiveNotificationResponse: (response) {
       if (handleSavedFileNotification(response.payload)) return;
       final payload = _parsePayload(response.payload);

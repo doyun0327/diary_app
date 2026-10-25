@@ -55,10 +55,12 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>프로필 사진과 일기에 쓸 사진을 찍기 위해 카메라에 접근합니다.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>만든 그림을 사진첩에 저장할 때 사용합니다.</string>
+	<string>프로필 사진과 일기에 쓸 사진을 고르기 위해 앨범에 접근합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>일기 그림 생성과 프로필 사진에 앨범 사진을 사용합니다.</string>
+	<string>프로필 사진과 일기에 쓸 사진을 고르기 위해 앨범에 접근합니다.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

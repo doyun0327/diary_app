@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import app_links
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -15,6 +16,47 @@ import UIKit
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "DiaryFilesPlugin") {
       DiaryFilesPlugin.register(with: registrar)
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "InviteLinkSceneForwarder") {
+      InviteLinkSceneForwarder.register(with: registrar)
+    }
+  }
+}
+
+/// 초대 링크(`pageby://join?code=…`, `https://pageby.stream/join…`)를 `app_links` 로 넘긴다.
+/// 이 앱은 UIScene(SceneDelegate) 구조라 iOS 가 링크를 scene 으로만 보내는데,
+/// app_links 6.4.1 은 AppDelegate 콜백만 받아서 링크가 Dart 까지 오지 않았음.
+/// false 를 돌려줘 Google 로그인 등 다른 플러그인도 같은 링크를 계속 받게 한다.
+final class InviteLinkSceneForwarder: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate {
+  static func register(with registrar: FlutterPluginRegistrar) {
+    registrar.addSceneDelegate(InviteLinkSceneForwarder())
+  }
+
+  // 앱이 꺼져 있다가 링크로 실행될 때
+  func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions?
+  ) -> Bool {
+    guard let options = connectionOptions else { return false }
+    options.urlContexts.forEach { AppLinks.shared.handleLink(url: $0.url) }
+    options.userActivities
+      .compactMap { $0.webpageURL }
+      .forEach { AppLinks.shared.handleLink(url: $0) }
+    return false
+  }
+
+  // 커스텀 스킴 (pageby://)
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) -> Bool {
+    URLContexts.forEach { AppLinks.shared.handleLink(url: $0.url) }
+    return false
+  }
+
+  // Universal Links (https://pageby.stream/…)
+  func scene(_ scene: UIScene, continue userActivity: NSUserActivity) -> Bool {
+    if let url = userActivity.webpageURL {
+      AppLinks.shared.handleLink(url: url)
+    }
+    return false
   }
 }
 

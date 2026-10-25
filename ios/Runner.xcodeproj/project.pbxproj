@@ -17,6 +17,7 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		A1B2C3D4E5F6071829304A5B /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6071829304A5C /* GoogleService-Info.plist */; };
+		FCB360D25B94AA7D0D714A06 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 9CC92CE4F81889DF17E2C104 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +63,18 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071829304A5C /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6071829304A5D /* Runner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Runner.entitlements; sourceTree = "<group>"; };
+		32D32F18269AE07BB27EB521 /* ko */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		E24CE2E23537A7370FC5A02C /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		10AEC8F867B5102E2F06955D /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		9A4A4341DE734C7501BC1D54 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hans; path = zh-Hans.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		286CA5F72BAAA7AF74F54F33 /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hant; path = zh-Hant.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		7CDABE279BFF10E6FE03FD1D /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		8993E1E163036162B721D649 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		D95F97B43F62F6BF1F45D2F4 /* fr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fr; path = fr.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		5E6609C6DF186B6523E96FF4 /* pt */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pt; path = pt.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		314358960DD2B1FD89AE8B6C /* id */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = id; path = id.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		3B6BE162CD230EAD0CDE80FD /* th */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = th; path = th.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		A542450F402FED150E7F6D4B /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +134,7 @@
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
+				9CC92CE4F81889DF17E2C104 /* InfoPlist.strings */,
 				97C147021CF9000F007C117D /* Info.plist */,
 				A1B2C3D4E5F6071829304A5C /* GoogleService-Info.plist */,
 				A1B2C3D4E5F6071829304A5D /* Runner.entitlements */,
@@ -203,6 +217,17 @@
 			knownRegions = (
 				en,
 				Base,
+				ko,
+				ja,
+				"zh-Hans",
+				"zh-Hant",
+				de,
+				es,
+				fr,
+				pt,
+				id,
+				th,
+				vi,
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
@@ -235,6 +260,7 @@
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				A1B2C3D4E5F6071829304A5B /* GoogleService-Info.plist in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				FCB360D25B94AA7D0D714A06 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -320,6 +346,25 @@
 			name = LaunchScreen.storyboard;
 			sourceTree = "<group>";
 		};
+		9CC92CE4F81889DF17E2C104 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				32D32F18269AE07BB27EB521 /* ko */,
+				E24CE2E23537A7370FC5A02C /* en */,
+				10AEC8F867B5102E2F06955D /* ja */,
+				9A4A4341DE734C7501BC1D54 /* zh-Hans */,
+				286CA5F72BAAA7AF74F54F33 /* zh-Hant */,
+				7CDABE279BFF10E6FE03FD1D /* de */,
+				8993E1E163036162B721D649 /* es */,
+				D95F97B43F62F6BF1F45D2F4 /* fr */,
+				5E6609C6DF186B6523E96FF4 /* pt */,
+				314358960DD2B1FD89AE8B6C /* id */,
+				3B6BE162CD230EAD0CDE80FD /* th */,
+				A542450F402FED150E7F6D4B /* vi */,
+			);
+			name = InfoPlist.strings;
+			sourceTree = "<group>";
+		};
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
@@ -389,6 +434,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 4QWTJ85RPZ;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yun.pageby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -569,6 +615,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 4QWTJ85RPZ;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yun.pageby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -592,6 +639,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = 4QWTJ85RPZ;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yun.pageby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";

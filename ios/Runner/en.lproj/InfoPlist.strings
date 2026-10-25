@@ -1,0 +1,4 @@
+/* 권한 안내 문구 (Info.plist 현지화) */
+"NSPhotoLibraryUsageDescription" = "PageBy accesses your photo album so you can choose photos for your profile and diary.";
+"NSPhotoLibraryAddUsageDescription" = "PageBy accesses your photo album so you can choose photos for your profile and diary.";
+"NSCameraUsageDescription" = "PageBy accesses your camera so you can take photos for your profile and diary.";

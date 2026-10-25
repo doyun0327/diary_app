@@ -1,0 +1,4 @@
+/* 권한 안내 문구 (Info.plist 현지화) */
+"NSPhotoLibraryUsageDescription" = "プロフィール写真や日記に使う写真を選ぶために、アルバムにアクセスします。";
+"NSPhotoLibraryAddUsageDescription" = "プロフィール写真や日記に使う写真を選ぶために、アルバムにアクセスします。";
+"NSCameraUsageDescription" = "プロフィール写真や日記に使う写真を撮るために、カメラにアクセスします。";

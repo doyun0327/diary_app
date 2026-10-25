@@ -1,0 +1,4 @@
+/* 권한 안내 문구 (Info.plist 현지화) */
+"NSPhotoLibraryUsageDescription" = "PageBy truy cập album ảnh để bạn chọn ảnh cho hồ sơ và nhật ký.";
+"NSPhotoLibraryAddUsageDescription" = "PageBy truy cập album ảnh để bạn chọn ảnh cho hồ sơ và nhật ký.";
+"NSCameraUsageDescription" = "PageBy truy cập máy ảnh để bạn chụp ảnh cho hồ sơ và nhật ký.";

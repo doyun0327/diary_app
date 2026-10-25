@@ -1,0 +1,4 @@
+/* 권한 안내 문구 (Info.plist 현지화) */
+"NSPhotoLibraryUsageDescription" = "PageBy เข้าถึงอัลบั้มรูปภาพเพื่อให้คุณเลือกรูปสำหรับโปรไฟล์และไดอารี่";
+"NSPhotoLibraryAddUsageDescription" = "PageBy เข้าถึงอัลบั้มรูปภาพเพื่อให้คุณเลือกรูปสำหรับโปรไฟล์และไดอารี่";
+"NSCameraUsageDescription" = "PageBy เข้าถึงกล้องเพื่อให้คุณถ่ายรูปสำหรับโปรไฟล์และไดอารี่";

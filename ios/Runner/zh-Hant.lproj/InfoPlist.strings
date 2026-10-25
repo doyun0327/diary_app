@@ -1,0 +1,4 @@
+/* 권한 안내 문구 (Info.plist 현지화) */
+"NSPhotoLibraryUsageDescription" = "為了選擇用於大頭貼和日記的照片，需要存取相簿。";
+"NSPhotoLibraryAddUsageDescription" = "為了選擇用於大頭貼和日記的照片，需要存取相簿。";
+"NSCameraUsageDescription" = "為了拍攝用於大頭貼和日記的照片，需要存取相機。";
