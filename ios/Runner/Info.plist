@@ -58,9 +58,11 @@
 	<key>NSCameraUsageDescription</key>
 	<string>프로필 사진과 일기에 쓸 사진을 찍기 위해 카메라에 접근합니다.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>프로필 사진과 일기에 쓸 사진을 고르기 위해 앨범에 접근합니다.</string>
+	<string>일기 그림을 앨범에 저장하기 위해 앨범에 접근합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>프로필 사진과 일기에 쓸 사진을 고르기 위해 앨범에 접근합니다.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>맞춤형 광고를 보여 드리기 위해 사용됩니다. 허용하지 않아도 앱의 모든 기능을 이용할 수 있어요.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

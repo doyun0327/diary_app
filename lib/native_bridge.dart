@@ -322,6 +322,19 @@ Future<void> _saveFileLocally(String name, String mime, Uint8List bytes) async {
     }
   }
 
+  // iOS 이미지: 사진 앱(앨범)에 바로 저장. 완료 안내는 웹 토스트가 띄움.
+  // 권한 거부·실패 시 아래 Documents 저장 + 미리보기로 폴백
+  if (Platform.isIOS && mime.startsWith('image/')) {
+    try {
+      final ok = await kDiaryFilesChannel.invokeMethod<bool>('saveImageToPhotos', {
+        'bytes': bytes,
+      });
+      if (ok == true) return;
+    } catch (e) {
+      debugPrint('saveImageToPhotos failed: $e');
+    }
+  }
+
   final dir = Platform.isIOS
       ? await getApplicationDocumentsDirectory()
       : await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();

@@ -1,4 +1,5 @@
 /* 권한 안내 문구 (Info.plist 현지화) */
 "NSPhotoLibraryUsageDescription" = "PageBy mengakses album foto agar kamu bisa memilih foto untuk profil dan diary.";
-"NSPhotoLibraryAddUsageDescription" = "PageBy mengakses album foto agar kamu bisa memilih foto untuk profil dan diary.";
+"NSPhotoLibraryAddUsageDescription" = "PageBy mengakses album foto untuk menyimpan gambar diary-mu.";
 "NSCameraUsageDescription" = "PageBy mengakses kamera agar kamu bisa mengambil foto untuk profil dan diary.";
+"NSUserTrackingUsageDescription" = "Digunakan untuk menampilkan iklan yang lebih relevan. Kamu tetap bisa memakai semua fitur aplikasi meski tidak mengizinkan.";

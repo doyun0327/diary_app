@@ -43,13 +43,29 @@ Future<void> main() async {
   unawaited(_initPlugins());
 }
 
-Future<void> _initPlugins() async {
-  // Ads first: banner must not load before MobileAds.initialize.
+/// iOS: ATT(앱 추적 투명성) 권한을 먼저 묻고 광고 SDK 초기화.
+/// 배너는 RewardedAdService.readyNotifier 를 기다리므로 그 전엔 로드되지 않음.
+Future<void> _initAds() async {
+  if (Platform.isIOS) {
+    try {
+      final status =
+          await kDiaryFilesChannel.invokeMethod<int>('requestTrackingAuthorization');
+      debugPrint('[ads] ATT status=$status');
+    } catch (e) {
+      debugPrint('[ads] ATT request failed: $e');
+    }
+  }
   try {
     await RewardedAdService.instance.init();
   } catch (e, st) {
     debugPrint('[main] ads init failed: $e\n$st');
   }
+}
+
+Future<void> _initPlugins() async {
+  // Ads first: banner must not load before MobileAds.initialize.
+  // ATT 팝업 응답을 기다리는 동안 구독 초기화는 같이 진행
+  final adsReady = _initAds();
   try {
     await SubscriptionService.instance.init();
     // WebView가 먼저 로드돼도 Pro 상태를 다시 맞춤
@@ -58,6 +74,8 @@ Future<void> _initPlugins() async {
     debugPrint('[main] subscription init failed: $e\n$st');
   }
   // Push after first frames so notification permission dialog is safe.
+  // iOS: ATT 팝업과 알림 권한 팝업이 겹치면 ATT 가 안 뜰 수 있어 ATT 응답 후 진행
+  await adsReady;
   try {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     await initDiaryPush();

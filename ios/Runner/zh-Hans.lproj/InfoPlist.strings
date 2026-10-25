@@ -1,4 +1,5 @@
 /* 권한 안내 문구 (Info.plist 현지화) */
 "NSPhotoLibraryUsageDescription" = "为了选择用于头像和日记的照片，需要访问相册。";
-"NSPhotoLibraryAddUsageDescription" = "为了选择用于头像和日记的照片，需要访问相册。";
+"NSPhotoLibraryAddUsageDescription" = "为了将日记图片保存到相册，需要访问相册。";
 "NSCameraUsageDescription" = "为了拍摄用于头像和日记的照片，需要访问相机。";
+"NSUserTrackingUsageDescription" = "用于向你展示更相关的广告。即使不允许，也可以使用应用的全部功能。";

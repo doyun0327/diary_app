@@ -1,4 +1,5 @@
 /* 권한 안내 문구 (Info.plist 현지화) */
 "NSPhotoLibraryUsageDescription" = "PageBy accède à votre album photo pour que vous puissiez choisir des photos pour votre profil et votre journal.";
-"NSPhotoLibraryAddUsageDescription" = "PageBy accède à votre album photo pour que vous puissiez choisir des photos pour votre profil et votre journal.";
+"NSPhotoLibraryAddUsageDescription" = "PageBy accède à votre album photo pour enregistrer les dessins de votre journal.";
 "NSCameraUsageDescription" = "PageBy accède à votre appareil photo pour que vous puissiez prendre des photos pour votre profil et votre journal.";
+"NSUserTrackingUsageDescription" = "Sert à vous montrer des publicités plus pertinentes. Vous pouvez utiliser toutes les fonctions de l’app même sans l’autoriser.";

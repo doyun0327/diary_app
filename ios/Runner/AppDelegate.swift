@@ -1,4 +1,6 @@
+import AppTrackingTransparency
 import Flutter
+import Photos
 import UIKit
 import app_links
 
@@ -61,7 +63,9 @@ final class InviteLinkSceneForwarder: NSObject, FlutterPlugin, FlutterSceneLifeC
 }
 
 /// Android `MainActivity` 의 `diary/files` 채널 iOS 버전.
-/// iOS 는 저장을 Dart 에서 Documents 폴더로 직접 하므로 `openSavedFile` 만 구현한다.
+/// - `openSavedFile`: PDF 등 Documents 파일 미리보기
+/// - `saveImageToPhotos`: 이미지를 사진 앱(앨범)에 바로 저장
+/// - `requestTrackingAuthorization`: ATT 추적 권한 요청 (광고 초기화 전)
 /// (`saveToDownloads`, `pickGalleryImage` 는 notImplemented → Dart 쪽 폴백 사용)
 final class DiaryFilesPlugin: NSObject, FlutterPlugin, UIDocumentInteractionControllerDelegate {
   /// 미리보기가 떠 있는 동안 해제되지 않도록 강하게 붙잡아 둔다.
@@ -84,8 +88,76 @@ final class DiaryFilesPlugin: NSObject, FlutterPlugin, UIDocumentInteractionCont
         return
       }
       openSavedFile(location, result: result)
+    case "saveImageToPhotos":
+      guard
+        let args = call.arguments as? [String: Any],
+        let bytes = args["bytes"] as? FlutterStandardTypedData
+      else {
+        result(FlutterError(code: "BAD_ARGS", message: "bytes required", details: nil))
+        return
+      }
+      saveImageToPhotos(bytes.data, result: result)
+    case "requestTrackingAuthorization":
+      requestTrackingAuthorization(result: result)
     default:
       result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// 사진 앱에 저장 (추가 전용 권한 = NSPhotoLibraryAddUsageDescription)
+  private func saveImageToPhotos(_ data: Data, result: @escaping FlutterResult) {
+    PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+      guard status == .authorized || status == .limited else {
+        DispatchQueue.main.async {
+          result(FlutterError(code: "DENIED", message: "photo add permission denied", details: nil))
+        }
+        return
+      }
+      PHPhotoLibrary.shared().performChanges({
+        PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
+      }) { success, error in
+        DispatchQueue.main.async {
+          if success {
+            result(true)
+          } else {
+            result(FlutterError(
+              code: "SAVE_FAILED",
+              message: error?.localizedDescription ?? "save failed",
+              details: nil))
+          }
+        }
+      }
+    }
+  }
+
+  /// ATT 팝업은 앱이 active 상태일 때만 뜬다. 아직 아니면 active 가 될 때까지 기다림.
+  /// 결과: 0 notDetermined, 1 restricted, 2 denied, 3 authorized
+  private func requestTrackingAuthorization(result: @escaping FlutterResult) {
+    guard #available(iOS 14, *) else {
+      result(3)
+      return
+    }
+    if ATTrackingManager.trackingAuthorizationStatus != .notDetermined {
+      result(Int(ATTrackingManager.trackingAuthorizationStatus.rawValue))
+      return
+    }
+    let request = {
+      ATTrackingManager.requestTrackingAuthorization { status in
+        DispatchQueue.main.async { result(Int(status.rawValue)) }
+      }
+    }
+    if UIApplication.shared.applicationState == .active {
+      request()
+      return
+    }
+    var token: NSObjectProtocol?
+    token = NotificationCenter.default.addObserver(
+      forName: UIApplication.didBecomeActiveNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      if let token { NotificationCenter.default.removeObserver(token) }
+      request()
     }
   }
 

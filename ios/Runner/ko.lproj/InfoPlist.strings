@@ -1,4 +1,5 @@
 /* 권한 안내 문구 (Info.plist 현지화) */
 "NSPhotoLibraryUsageDescription" = "프로필 사진과 일기에 쓸 사진을 고르기 위해 앨범에 접근합니다.";
-"NSPhotoLibraryAddUsageDescription" = "프로필 사진과 일기에 쓸 사진을 고르기 위해 앨범에 접근합니다.";
+"NSPhotoLibraryAddUsageDescription" = "일기 그림을 앨범에 저장하기 위해 앨범에 접근합니다.";
 "NSCameraUsageDescription" = "프로필 사진과 일기에 쓸 사진을 찍기 위해 카메라에 접근합니다.";
+"NSUserTrackingUsageDescription" = "맞춤형 광고를 보여 드리기 위해 사용됩니다. 허용하지 않아도 앱의 모든 기능을 이용할 수 있어요.";

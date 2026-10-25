@@ -1,4 +1,5 @@
 /* 권한 안내 문구 (Info.plist 현지화) */
 "NSPhotoLibraryUsageDescription" = "O PageBy acessa seu álbum de fotos para você escolher fotos para o perfil e o diário.";
-"NSPhotoLibraryAddUsageDescription" = "O PageBy acessa seu álbum de fotos para você escolher fotos para o perfil e o diário.";
+"NSPhotoLibraryAddUsageDescription" = "O PageBy acessa seu álbum de fotos para salvar os desenhos do seu diário.";
 "NSCameraUsageDescription" = "O PageBy acessa sua câmera para você tirar fotos para o perfil e o diário.";
+"NSUserTrackingUsageDescription" = "Usado para mostrar anúncios mais relevantes. Você pode usar todos os recursos do app mesmo sem permitir.";
