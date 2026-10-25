@@ -327,6 +327,12 @@ Future<void> _saveFileLocally(String name, String mime, Uint8List bytes) async {
       : await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
   final file = File('${dir.path}/$safeName');
   await file.writeAsBytes(bytes, flush: true);
+  if (Platform.isIOS) {
+    // iOS: 알림(권한 필요) 대신 바로 미리보기 → 공유 버튼으로 파일 앱 저장·AirDrop·프린트
+    // 파일은 Documents 에도 남아 파일 앱 > 나의 iPhone > pageBy 에서 볼 수 있음
+    await openSavedFile(file.path, mime);
+    return;
+  }
   _announceSavedFile(uri: file.path, mime: mime);
 }
 
