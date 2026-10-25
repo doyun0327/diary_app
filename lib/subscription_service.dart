@@ -19,9 +19,20 @@ class SubscriptionService {
     if (_configured) return;
     if (kIsWeb) return;
 
-    final apiKey = Platform.isIOS
-        ? SubscriptionConfig.appleApiKey
-        : SubscriptionConfig.googleApiKey;
+    final testKey = SubscriptionConfig.testStoreApiKey.trim();
+    final useTestStore =
+        kDebugMode && Platform.isIOS && testKey.startsWith('test_');
+    final apiKey = useTestStore
+        ? testKey
+        : Platform.isIOS
+            ? SubscriptionConfig.appleApiKey
+            : SubscriptionConfig.googleApiKey;
+    if (useTestStore) {
+      debugPrint(
+        '[subscription] RevenueCat Test Store (debug only). '
+        '결제 시트는 Apple이 아니라 테스트 모달입니다.',
+      );
+    }
 
     if (apiKey.contains('REPLACE_ME')) {
       debugPrint(
@@ -697,13 +708,18 @@ class SubscriptionService {
     if (expiration != null) {
       expiresAtMs = DateTime.tryParse(expiration)?.millisecondsSinceEpoch;
     }
+    // 웹은 active=false 이고 expiresAt 이 비어 있으면
+    // 다른 계정에서 복사된 premiumUntil 을 유지한다.
+    // 지난 시각을 보내야 기기·계정에 남은 Pro 표시를 지운다.
     return _SubscriptionSnapshot(
       active: active,
-      expiresAtMs: expiresAtMs,
-      productId: entitlement?.productIdentifier ??
-          (info.activeSubscriptions.isNotEmpty
-              ? info.activeSubscriptions.first
-              : null),
+      expiresAtMs: active ? expiresAtMs : 1,
+      productId: active
+          ? (entitlement?.productIdentifier ??
+              (info.activeSubscriptions.isNotEmpty
+                  ? info.activeSubscriptions.first
+                  : null))
+          : null,
     );
   }
 

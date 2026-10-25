@@ -15,6 +15,13 @@ class SubscriptionConfig {
     defaultValue: 'appl_shEiweOdUQBRoINJdjWscLGktet',
   );
 
+  /// 시뮬레이터용 Test Store 키. 디버그 빌드에서만 사용한다.
+  /// `--dart-define=REVENUECAT_TEST_STORE_KEY=test_...`
+  static const testStoreApiKey = String.fromEnvironment(
+    'REVENUECAT_TEST_STORE_KEY',
+    defaultValue: 'test_MbrSUxCNZWIDigVKeFojERCaDFY',
+  );
+
   /// RevenueCat Entitlement ID
   static const entitlementId = 'premium';
 
