@@ -177,6 +177,8 @@ class SubscriptionService {
         'productId': product.identifier,
         'priceString': product.priceString,
         'currencyCode': product.currencyCode,
+        // 숫자 가격 (현지 통화). 웹에서 연간 할인율 계산에 사용
+        'price': product.price.toString(),
       };
     }
 
@@ -256,6 +258,7 @@ class SubscriptionService {
             'productId': id,
             'priceString': entry.value['priceString'] ?? '',
             'currencyCode': entry.value['currencyCode'] ?? '',
+            'price': entry.value['price'] ?? '',
           });
           used.add(entry.key);
           break;
