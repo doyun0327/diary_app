@@ -1,0 +1,72 @@
+{
+  "_comment": "Play Console > App content > Data safety 에 맞출 권장 선언 (코드 스캔 기준). 최종 책임은 개발자.",
+  "package": "com.yun.diary_app",
+  "account_deletion_url": "https://pageby.stream/account-deletion.html",
+  "privacy_policy_url": "https://pageby.stream/privacy.html",
+  "reviewer_demo_credentials": {
+    "required": true,
+    "note": "Google 로그인 전용 테스트 계정(만료 없음)을 Play Console 앱 액세스 권한 / 테스트 안내에 제출"
+  },
+  "collected_data": [
+    {
+      "data_type": "Photos",
+      "collected": true,
+      "shared": false,
+      "purpose": ["App functionality"],
+      "linked_to_user": true,
+      "optional": true,
+      "note": "사용자 선택 사진만 Photo Picker로 업로드(일기 그림·프로필). READ_MEDIA_IMAGES 미사용."
+    },
+    {
+      "data_type": "Files and docs",
+      "collected": true,
+      "shared": false,
+      "purpose": ["App functionality"],
+      "linked_to_user": true,
+      "optional": true
+    },
+    {
+      "data_type": "User IDs",
+      "collected": true,
+      "shared": false,
+      "purpose": ["App functionality", "Account management"],
+      "linked_to_user": true,
+      "optional": false
+    },
+    {
+      "data_type": "Email address",
+      "collected": true,
+      "shared": false,
+      "purpose": ["Account management"],
+      "linked_to_user": true,
+      "optional": false,
+      "note": "Google Sign-In"
+    },
+    {
+      "data_type": "Name",
+      "collected": true,
+      "shared": false,
+      "purpose": ["App functionality", "Account management"],
+      "linked_to_user": true,
+      "optional": true
+    },
+    {
+      "data_type": "App interactions / Device or other IDs",
+      "collected": true,
+      "shared": true,
+      "purpose": ["Advertising or marketing", "Analytics"],
+      "linked_to_user": false,
+      "optional": true,
+      "note": "google_mobile_ads / AD_ID — Console 광고 ID 선언과 일치시킬 것"
+    },
+    {
+      "data_type": "Purchase history",
+      "collected": true,
+      "shared": false,
+      "purpose": ["App functionality", "Account management"],
+      "linked_to_user": true,
+      "optional": true,
+      "note": "Play Billing / RevenueCat 구독·소모성"
+    }
+  ]
+}

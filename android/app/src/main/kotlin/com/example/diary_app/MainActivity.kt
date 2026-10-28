@@ -7,7 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import androidx.activity.result.ActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -18,24 +18,40 @@ import java.io.IOException
 
 class MainActivity : FlutterFragmentActivity() {
     private var pendingGalleryPick: MethodChannel.Result? = null
+    private var pendingAllowMultiple: Boolean = false
 
-    private val pickGalleryImage = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { activityResult: ActivityResult ->
+    /** Play 정책: READ_MEDIA_IMAGES 없이 시스템 Photo Picker만 사용 */
+    private val pickVisualMedia = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri: Uri? ->
         val result = pendingGalleryPick
         pendingGalleryPick = null
+        pendingAllowMultiple = false
         if (result == null) return@registerForActivityResult
-        if (activityResult.resultCode != RESULT_OK) {
-            result.success(null)
-            return@registerForActivityResult
-        }
-        val uri = activityResult.data?.data
         if (uri == null) {
             result.success(null)
             return@registerForActivityResult
         }
         try {
             result.success(copyUriToCache(uri))
+        } catch (e: Exception) {
+            result.error("PICK_FAILED", e.message, null)
+        }
+    }
+
+    private val pickMultipleVisualMedia = registerForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris: List<Uri> ->
+        val result = pendingGalleryPick
+        pendingGalleryPick = null
+        pendingAllowMultiple = false
+        if (result == null) return@registerForActivityResult
+        if (uris.isEmpty()) {
+            result.success(emptyList<String>())
+            return@registerForActivityResult
+        }
+        try {
+            result.success(uris.map { copyUriToCache(it) })
         } catch (e: Exception) {
             result.error("PICK_FAILED", e.message, null)
         }
@@ -84,18 +100,21 @@ class MainActivity : FlutterFragmentActivity() {
                             result.error("BUSY", "picker already open", null)
                             return@setMethodCallHandler
                         }
+                        val allowMultiple = call.argument<Boolean>("allowMultiple") == true
                         pendingGalleryPick = result
-                        // 기기 갤러리 앱을 직접 연다 → 카톡/다운로드 등 갤러리에 있는 사진 전부
-                        val intent = Intent(
-                            Intent.ACTION_PICK,
-                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        ).apply {
-                            type = "image/*"
-                        }
+                        pendingAllowMultiple = allowMultiple
+                        val request = PickVisualMediaRequest(
+                            ActivityResultContracts.PickVisualMedia.ImageOnly,
+                        )
                         try {
-                            pickGalleryImage.launch(intent)
+                            if (allowMultiple) {
+                                pickMultipleVisualMedia.launch(request)
+                            } else {
+                                pickVisualMedia.launch(request)
+                            }
                         } catch (e: Exception) {
                             pendingGalleryPick = null
+                            pendingAllowMultiple = false
                             result.error("PICK_FAILED", e.message, null)
                         }
                     }

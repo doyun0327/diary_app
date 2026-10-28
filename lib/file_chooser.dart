@@ -24,9 +24,8 @@ Future<List<String>> _pickFiles(FileSelectorParams params) async {
     final allowMultiple = params.mode == FileSelectorMode.openMultiple;
 
     if (imagesOnly) {
-      // 시스템 Photo Picker는 갤러리 앱에 있는 사진(카톡 등)을 빼먹는 경우가 많음.
-      // 기기 갤러리 앱(ACTION_PICK)을 열어 갤러리에 보이는 사진을 전부 고르게 함.
-      return _pickImagesFromDeviceGallery(allowMultiple: allowMultiple);
+      // Play 정책: READ_MEDIA_IMAGES 없이 시스템 Photo Picker만 사용
+      return _pickImagesWithPhotoPicker(allowMultiple: allowMultiple);
     }
 
     if (allowMultiple) {
@@ -43,33 +42,33 @@ Future<List<String>> _pickFiles(FileSelectorParams params) async {
   }
 }
 
-Future<List<String>> _pickImagesFromDeviceGallery({
+Future<List<String>> _pickImagesWithPhotoPicker({
   required bool allowMultiple,
 }) async {
-  if (!allowMultiple) {
-    try {
-      final path = await kDiaryFilesChannel.invokeMethod<String>(
-        'pickGalleryImage',
-      );
-      if (path != null && path.isNotEmpty) {
-        return [Uri.file(path).toString()];
-      }
-      return const [];
-    } on PlatformException catch (e) {
-      debugPrint('pickGalleryImage failed: $e — fallback FilePicker');
-    } catch (e) {
-      debugPrint('pickGalleryImage error: $e — fallback FilePicker');
+  try {
+    final raw = await kDiaryFilesChannel.invokeMethod<dynamic>(
+      'pickGalleryImage',
+      <String, dynamic>{'allowMultiple': allowMultiple},
+    );
+    if (raw == null) return const [];
+    if (raw is String && raw.isNotEmpty) {
+      return [Uri.file(raw).toString()];
     }
+    if (raw is List) {
+      return raw
+          .whereType<String>()
+          .where((path) => path.isNotEmpty)
+          .map((path) => Uri.file(path).toString())
+          .toList(growable: false);
+    }
+    return const [];
+  } on PlatformException catch (e) {
+    debugPrint('Photo Picker failed: $e');
+    return const [];
+  } catch (e) {
+    debugPrint('Photo Picker error: $e');
+    return const [];
   }
-
-  if (allowMultiple) {
-    final files = await FilePicker.pickFiles(type: FileType.image);
-    return _platformFilesToUris(files);
-  }
-
-  final file = await FilePicker.pickFile(type: FileType.image);
-  if (file == null) return const [];
-  return _platformFilesToUris([file]);
 }
 
 Future<List<String>> _platformFilesToUris(List<PlatformFile> files) async {
