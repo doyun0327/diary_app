@@ -42,8 +42,7 @@ class SubscriptionService {
       return;
     }
 
-    // 진단용: 릴리스에서도 Purchases/Billing 로그 출력
-    await Purchases.setLogLevel(LogLevel.debug);
+    await Purchases.setLogLevel(kDebugMode ? LogLevel.debug : LogLevel.info);
     final config = PurchasesConfiguration(apiKey);
     try {
       await Purchases.configure(config);
@@ -554,8 +553,13 @@ class SubscriptionService {
     return false;
   }
 
-  /// RevenueCat entitlement가 비어도 Play가 소유를 확인한 경우 웹 Pro 활성
+  /// RevenueCat entitlement가 비어도 Play가 소유를 확인한 경우 웹 Pro 활성.
+  /// iOS는 StoreKit/RevenueCat 확인 없이 Pro를 올리지 않는다 (심사 3.1.1).
   Future<void> _forceProToWeb({CustomerInfo? info}) async {
+    if (Platform.isIOS) {
+      debugPrint('[subscription] skip force Pro on iOS');
+      return;
+    }
     final entitlement = info == null ? null : _pickEntitlement(info);
     int? expiresAtMs;
     final expiration = entitlement?.expirationDate;

@@ -56,14 +56,13 @@ void Function(String uri, String mime)? savedFileNotice;
 Future<void> Function(String title, String body)? aiDrawCompleteNotice;
 
 Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
-  // 릴리스에서도 logcat에 보이도록 print 사용 (debugPrint는 필터에 안 잡힐 수 있음)
-  print('[DiaryNative] ${message.message}');
+  debugPrint('[DiaryNative] ${message.message}');
   try {
     final decoded = jsonDecode(message.message);
     if (decoded is! Map) return;
     final data = decoded.cast<String, dynamic>();
     final type = data['type'] as String? ?? 'share';
-    print('[DiaryNative] type=$type');
+    debugPrint('[DiaryNative] type=$type');
 
     if (type == 'googleSignIn') {
       enqueueNativeGoogleSignIn();
