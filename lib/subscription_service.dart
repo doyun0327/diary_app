@@ -198,6 +198,15 @@ class SubscriptionService {
           SubscriptionConfig.isSubscriptionProduct(id);
     }
 
+    // Offering 캐시에 묶인 StoreProduct 가격이 늦을 수 있음.
+    // 구독은 Offering 갱신이 비교적 잘 되고, AI 팩·츄르는 Offering에만 있으면
+    // getProducts 를 건너뛰어 Play Console 신가격이 앱에 안 보이던 경우가 있음.
+    try {
+      await Purchases.syncAttributesAndOfferingsIfNeeded();
+    } catch (e, st) {
+      debugPrint('[iap] syncAttributesAndOfferingsIfNeeded failed: $e\n$st');
+    }
+
     try {
       final offerings = await Purchases.getOfferings();
       for (final offering in offerings.all.values) {
@@ -211,25 +220,28 @@ class SubscriptionService {
       debugPrint('[iap] offerings price lookup failed: $e\n$st');
     }
 
-    final missingConsumables = <String>[
+    // 소모성(AI 팩·츄르)은 항상 Play Billing 재조회로 Offering 값을 덮어쓴다.
+    final consumableIds = <String>[
       ...SubscriptionConfig.tipProductIds,
       ...SubscriptionConfig.aiPackProductIds,
-    ].where((id) => !byId.keys.any((k) => k == id || k.startsWith('$id:'))).toList();
-
-    if (missingConsumables.isNotEmpty) {
-      try {
-        final products = await Purchases.getProducts(
-          missingConsumables,
-          productCategory: ProductCategory.nonSubscription,
-        );
-        for (final product in products) {
-          putProduct(product);
-        }
-      } catch (e, st) {
-        debugPrint('[iap] getProducts(consumable) price lookup failed: $e\n$st');
+    ];
+    try {
+      final products = await Purchases.getProducts(
+        consumableIds,
+        productCategory: ProductCategory.nonSubscription,
+      );
+      for (final product in products) {
+        putProduct(product);
       }
+      debugPrint(
+        '[iap] getProducts(consumable) count=${products.length} '
+        'ids=${products.map((p) => '${p.identifier}:${p.priceString}').join(',')}',
+      );
+    } catch (e, st) {
+      debugPrint('[iap] getProducts(consumable) price lookup failed: $e\n$st');
     }
 
+    // 구독도 Offering 미스 시에만 직접 조회 (기존과 동일)
     final hasSub = byId.keys.any(
       (k) => SubscriptionConfig.isSubscriptionProduct(k),
     );
@@ -448,18 +460,54 @@ class SubscriptionService {
 
   Future<void> restore() async {
     if (!_configured) {
-      throw PlatformException(
-        code: 'not_configured',
-        message: 'RevenueCat is not configured',
+      await WebViewHost.instance.dispatchSubscriptionRestoreResult(
+        ok: false,
+        active: false,
+        error: 'not_configured',
+      );
+      return;
+    }
+    try {
+      await Purchases.syncPurchases();
+      var info = await Purchases.restorePurchases();
+      await _applyPurchasedInfo(info);
+      if (!_isPremium(info)) {
+        // 복원 결과가 비어도 스토어 구독이 있으면 아래에서 잡힘
+        await _refreshAndPushIfPremium(reason: 'restore-fallback');
+        try {
+          info = await Purchases.getCustomerInfo();
+        } catch (_) {}
+      }
+      final active = _isPremium(info);
+      await WebViewHost.instance.dispatchSubscriptionRestoreResult(
+        ok: true,
+        active: active,
+      );
+    } catch (e, st) {
+      debugPrint('[subscription] restore failed: $e\n$st');
+      await WebViewHost.instance.dispatchSubscriptionRestoreResult(
+        ok: false,
+        active: false,
+        error: _shortRestoreError(e),
       );
     }
-    await Purchases.syncPurchases();
-    final info = await Purchases.restorePurchases();
-    await _applyPurchasedInfo(info);
-    if (!_isPremium(info)) {
-      // 복원 결과가 비어도 스토어 구독이 있으면 아래에서 잡힘
-      await _refreshAndPushIfPremium(reason: 'restore-fallback');
+  }
+
+  /// 웹 안내용 짧은 실패 이유 (코드·메시지)
+  static String _shortRestoreError(Object e) {
+    if (e is PlatformException) {
+      final code = e.code.trim();
+      final msg = (e.message ?? '').trim();
+      if (code == 'not_configured') return code;
+      if (msg.isNotEmpty) {
+        return msg.length > 100 ? '${msg.substring(0, 100)}…' : msg;
+      }
+      if (code.isNotEmpty) return code;
     }
+    var s = e.toString().trim();
+    s = s.replaceFirst(RegExp(r'^(Exception|Error):\s*'), '');
+    if (s.isEmpty) return 'restore_failed';
+    return s.length > 100 ? '${s.substring(0, 100)}…' : s;
   }
 
   Future<void> _applyPurchasedInfo(CustomerInfo info) async {

@@ -131,6 +131,16 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
         await SubscriptionService.instance.restore();
       } catch (e, st) {
         debugPrint('subscription restore failed: $e\n$st');
+        // restore() 가 보통 이미 결과를 보냄. 예외만 남은 경우 대비
+        final msg = e.toString().trim();
+        final short = msg.length > 100 ? '${msg.substring(0, 100)}…' : msg;
+        try {
+          await WebViewHost.instance.dispatchSubscriptionRestoreResult(
+            ok: false,
+            active: false,
+            error: short.isEmpty ? 'restore_failed' : short,
+          );
+        } catch (_) {}
       }
       return;
     }

@@ -2,11 +2,14 @@ import 'dart:convert';
 
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'install_device_key.dart';
+
 class WebViewHost {
   WebViewHost._();
   static final WebViewHost instance = WebViewHost._();
 
   WebViewController? controller;
+  String? _cachedInstallDeviceKey;
 
   Future<void> runJs(String js) async {
     final web = controller;
@@ -15,9 +18,13 @@ class WebViewHost {
   }
 
   Future<void> markFlutter() async {
+    _cachedInstallDeviceKey ??= await getInstallDeviceKey();
+    final keyJson = jsonEncode(_cachedInstallDeviceKey ?? '');
     await runJs('''
       window.__DIARY_FLUTTER__ = true;
+      window.__DIARY_NATIVE_DEVICE_KEY__ = $keyJson;
       window.dispatchEvent(new Event('diary-flutter-ready'));
+      window.dispatchEvent(new Event('diary-native-device-key'));
     ''');
   }
 
@@ -97,6 +104,26 @@ class WebViewHost {
         window.__onDiarySubscriptionPurchaseComplete($payload);
       }
       window.dispatchEvent(new CustomEvent('diary-subscription-purchase-complete', { detail: $payload }));
+    ''');
+  }
+
+  /// 구매 복원 결과 (웹 `__onDiarySubscriptionRestore`)
+  Future<void> dispatchSubscriptionRestoreResult({
+    required bool ok,
+    required bool active,
+    String? error,
+  }) async {
+    final payload = jsonEncode({
+      'ok': ok,
+      'active': active,
+      'error': error,
+    });
+    await runJs('''
+      window.__DIARY_FLUTTER__ = true;
+      if (typeof window.__onDiarySubscriptionRestore === 'function') {
+        window.__onDiarySubscriptionRestore($payload);
+      }
+      window.dispatchEvent(new CustomEvent('diary-subscription-restore', { detail: $payload }));
     ''');
   }
 

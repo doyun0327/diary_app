@@ -1,6 +1,7 @@
 import AppTrackingTransparency
 import Flutter
 import Photos
+import Security
 import UIKit
 import app_links
 
@@ -62,6 +63,57 @@ final class InviteLinkSceneForwarder: NSObject, FlutterPlugin, FlutterSceneLifeC
   }
 }
 
+/// 설치 무료 AI 용 기기 키 (Keychain). 앱 삭제 후에도 유지되는 경우가 많음.
+enum InstallDeviceKeyStore {
+  static let shared = InstallDeviceKeyStoreImpl()
+}
+
+final class InstallDeviceKeyStoreImpl {
+  private let service = "stream.pageby.installDeviceKey"
+  private let account = "install-device-key-v1"
+
+  func deviceKey() -> String {
+    if let existing = read(), !existing.isEmpty {
+      return "i:\(existing)"
+    }
+    let created = UUID().uuidString.lowercased()
+    _ = save(created)
+    return "i:\(created)"
+  }
+
+  private func read() -> String? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    guard status == errSecSuccess, let data = item as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  @discardableResult
+  private func save(_ value: String) -> Bool {
+    guard let data = value.data(using: .utf8) else { return false }
+    SecItemDelete([
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+    ] as CFDictionary)
+    let status = SecItemAdd([
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecValueData as String: data,
+      kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+    ] as CFDictionary, nil)
+    return status == errSecSuccess
+  }
+}
+
 /// Android `MainActivity` 의 `diary/files` 채널 iOS 버전.
 /// - `openSavedFile`: PDF 등 Documents 파일 미리보기
 /// - `saveImageToPhotos`: 이미지를 사진 앱(앨범)에 바로 저장
@@ -99,6 +151,9 @@ final class DiaryFilesPlugin: NSObject, FlutterPlugin, UIDocumentInteractionCont
       saveImageToPhotos(bytes.data, result: result)
     case "requestTrackingAuthorization":
       requestTrackingAuthorization(result: result)
+    case "getInstallDeviceKey":
+      // Keychain UUID — 삭제 후에도 남는 경우가 많아 재설치 무료 복구 완화
+      result(InstallDeviceKeyStore.shared.deviceKey())
     default:
       result(FlutterMethodNotImplemented)
     }

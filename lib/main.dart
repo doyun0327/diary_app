@@ -385,9 +385,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
               _loading = true;
               _webReady = false;
             });
-            unawaited(_controller.runJavaScript('''
-              window.__DIARY_FLUTTER__ = true;
-            '''));
+            unawaited(() async {
+              await WebViewHost.instance.markFlutter();
+            }());
           },
           onPageFinished: (url) {
             unawaited(() async {

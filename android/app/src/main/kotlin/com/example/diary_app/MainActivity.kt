@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
@@ -116,6 +117,18 @@ class MainActivity : FlutterFragmentActivity() {
                             pendingGalleryPick = null
                             pendingAllowMultiple = false
                             result.error("PICK_FAILED", e.message, null)
+                        }
+                    }
+                    // 재설치에도 유지되는 ANDROID_ID — 설치 무료 AI 서버 키
+                    "getInstallDeviceKey" -> {
+                        val id = Settings.Secure.getString(
+                            contentResolver,
+                            Settings.Secure.ANDROID_ID,
+                        )
+                        if (id.isNullOrBlank()) {
+                            result.error("NO_ID", "ANDROID_ID unavailable", null)
+                        } else {
+                            result.success("a:$id")
                         }
                     }
                     else -> result.notImplemented()
