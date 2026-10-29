@@ -14,13 +14,13 @@
     <uses-permission
         android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
         tools:node="remove" />
+    <!-- API 29+ 는 MediaStore Downloads 사용. 구버전 저장용만 유지. 미디어 라이브러리 읽기 권한 없음. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
-    <!-- 저장소 읽기는 API 28 이하 다운로드 저장 폴백만 (이미지 갤러리 스캔 아님) -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
+        tools:node="remove" />
 
     <application
         android:label="pageBy"

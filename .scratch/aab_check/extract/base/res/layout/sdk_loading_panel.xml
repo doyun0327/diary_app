@@ -1,0 +1,32 @@
+
+Ñ
+;
+android*http://schemas.android.com/apk/res/android	+
+4
+app'http://schemas.android.com/apk/res-auto	+Ccom.google.android.play.core.hsdp.service.HsdpLoadingPanelContainer"`
+*http://schemas.android.com/apk/res/androidlayout_widthmatch_parent"	(ô„2:0ÿÿÿÿÿÿÿÿÿ"a
+*http://schemas.android.com/apk/res/androidlayout_heightwrap_content"	(õ„2:0þÿÿÿÿÿÿÿÿ"k
+*http://schemas.android.com/apk/res/androidid@+id/content_frame"	(Ð„2
+‚ øid/content_frame0"\
+*http://schemas.android.com/apk/res/androidfilterTouchesWhenObscuredtrue"	(Ä…„2:@*Û
+Òinclude"layout1@layout/hsdp_service_prism_with_loading_indicator"2>
+<¢€¬ø0layout/hsdp_service_prism_with_loading_indicator0ÿÿ"M
+*http://schemas.android.com/apk/res/android
+visibilitygone"(Ü„2:0"w
+*http://schemas.android.com/apk/res/androidid@+id/placeholder_loading"(Ð„2"
+ ö øid/placeholder_loading0%*¨
+ŸImageButton"T
+*http://schemas.android.com/apk/res/androidlayout_marginEnd16dp"(¶‡„2:h "œ
+*http://schemas.android.com/apk/res/androidcontentDescription"@string/dismiss_button_description"(ó„„2-
++·€¸ø!string/dismiss_button_description0"Q
+*http://schemas.android.com/apk/res/android	scaleType	fitCenter"(‚„2:0"±
+*http://schemas.android.com/apk/res/android
+background0?android:attr/selectableItemBackgroundBorderless"(Ô„2<
+:Üˆ„/android:attr/selectableItemBackgroundBorderless0"I
+*http://schemas.android.com/apk/res/androidpadding0dp"(Õ„2:h"P
+*http://schemas.android.com/apk/res/androidlayout_width20dp"(ô„2:h("Q
+*http://schemas.android.com/apk/res/androidlayout_height20dp"(õ„2:h("T
+*http://schemas.android.com/apk/res/androidlayout_marginTop16dp"(ø„2:h "u
+*http://schemas.android.com/apk/res/androidid@+id/sdk_dismiss_button"(Ð„2!
+‚ øid/sdk_dismiss_button0"W
+*http://schemas.android.com/apk/res/androidlayout_gravitytop|end"(³„2:8µ€€)	+

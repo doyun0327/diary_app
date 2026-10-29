@@ -1,0 +1,16 @@
+
+¶data-extraction-rules*‹
+‚cloud-backup*,
+$exclude"	path."domainroot+*,
+$exclude"	path."domainfile+*0
+(exclude"	path."domaindatabase/*2
+*exclude"	path."domain
+sharedpref1*0
+(exclude"	path."domainexternal	/*Ž
+…device-transfer*,
+$exclude"	path."domainroot+*,
+$exclude"	path."domainfile+*0
+(exclude"	path."domaindatabase/*2
+*exclude"	path."domain
+sharedpref1*0
+(exclude"	path."domainexternal/

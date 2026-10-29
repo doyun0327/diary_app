@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -320,11 +319,8 @@ Future<void> _saveFileLocally(String name, String mime, Uint8List bytes) async {
       }
     }
 
-    var uri = await trySave();
-    if (uri == null || uri.isEmpty) {
-      final status = await Permission.storage.request();
-      if (status.isGranted) uri = await trySave();
-    }
+    // MediaStore(Downloads) 저장 — READ_MEDIA_* / 저장소 권한 요청하지 않음 (Play 사진·동영상 정책)
+    final uri = await trySave();
     if (uri != null && uri.isNotEmpty) {
       _announceSavedFile(uri: uri, mime: mime);
       return;
