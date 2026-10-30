@@ -20,7 +20,7 @@ class RewardedAdService {
   static const _androidTestRewardedId = 'ca-app-pub-3940256099942544/5224354917';
   static const _androidProdRewardedId = 'ca-app-pub-4752729386590212/8307456691';
   static const _iosTestRewardedId = 'ca-app-pub-3940256099942544/1712485313';
-  static const _iosProdRewardedId = 'ca-app-pub-4752729386590212/7760630931';
+  static const _iosProdRewardedId = 'ca-app-pub-4752729386590212/8580091265';
 
   static String _rewardedUnitId() {
     const fromDefine = String.fromEnvironment('ADMOB_REWARDED_UNIT_ID');

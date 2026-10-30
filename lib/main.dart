@@ -135,8 +135,8 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
   /// 비어 있으면 릴리스에서 배너가 표시되지 않습니다.
   static const _androidProdBannerId = 'ca-app-pub-4752729386590212/5989921712';
   static const _iosTestBannerId = 'ca-app-pub-3940256099942544/2934735716';
-  /// iOS 앱: ca-app-pub-4752729386590212~5570330297
-  static const _iosProdBannerId = 'ca-app-pub-4752729386590212/1582983825';
+  /// iOS 앱: ca-app-pub-4752729386590212~7515696697
+  static const _iosProdBannerId = 'ca-app-pub-4752729386590212/9844804571';
 
   String? _bannerUnitId() {
     const fromDefine = String.fromEnvironment('ADMOB_BANNER_UNIT_ID');
@@ -565,6 +565,9 @@ class _DiaryWebViewPageState extends State<DiaryWebViewPage>
             setState(() => _bannerLoaded = true);
           },
           onAdFailedToLoad: (ad, error) {
+            // code 1(No fill) = 광고 재고 없음, 그 외는 ID·설정 문제
+            debugPrint('[ads] banner load failed code=${error.code} '
+                'domain=${error.domain} message=${error.message}');
             ad.dispose();
             _bannerAd = null;
             if (!mounted) return;
