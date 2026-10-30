@@ -190,10 +190,12 @@ Future<void> handleDiaryNativeMessage(JavaScriptMessage message) async {
     if (type == 'rewardedAdShow') {
       final reason = (data['reason'] as String?)?.trim() ?? 'aiDraw';
       final ok = await RewardedAdService.instance.showForAiDraw();
-      await WebViewHost.instance.dispatchRewardedAdResult(ok: ok, reason: reason);
-      if (!ok) {
-        // 웹 쪽에서 모달로 안내 (중복 스낵 방지)
-      }
+      await WebViewHost.instance.dispatchRewardedAdResult(
+        ok: ok,
+        reason: reason,
+        error: ok ? null : RewardedAdService.instance.lastFailure,
+      );
+      // 실패 안내는 웹 쪽 토스트에서 (중복 스낵 방지)
       return;
     }
     if (type == 'aiDrawComplete') {

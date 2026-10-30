@@ -13,6 +13,9 @@ class RewardedAdService {
   bool _loading = false;
   bool _ready = false;
 
+  /// 마지막 [showForAiDraw] 실패 이유. `no_ad` = 보여 줄 광고 없음, `dismissed` = 끝까지 안 보고 닫음
+  String? lastFailure;
+
   /// MobileAds 초기화 완료 여부 (배너는 이 이후에만 로드)
   bool get isReady => _ready;
   final ValueNotifier<bool> readyNotifier = ValueNotifier(false);
@@ -89,9 +92,11 @@ class RewardedAdService {
   }
 
   Future<bool> showForAiDraw() async {
+    lastFailure = null;
     final loaded = await _awaitLoadedAd();
     if (loaded == null) {
       debugPrint('rewarded: no ad ready');
+      lastFailure = 'no_ad';
       return false;
     }
 
@@ -109,6 +114,7 @@ class RewardedAdService {
       onAdFailedToShowFullScreenContent: (ad, error) {
         debugPrint('rewarded show failed: $error');
         ad.dispose();
+        lastFailure = 'no_ad';
         if (!completer.isCompleted) completer.complete(false);
         unawaited(_preload());
       },
@@ -127,6 +133,7 @@ class RewardedAdService {
     } catch (e, st) {
       debugPrint('rewarded show threw: $e\n$st');
       ad.dispose();
+      lastFailure = 'no_ad';
       if (!completer.isCompleted) completer.complete(false);
       unawaited(_preload());
       return false;
@@ -148,6 +155,7 @@ class RewardedAdService {
     final ok = earned();
     if (!completer.isCompleted) {
       debugPrint('rewarded dismiss: earned=$ok');
+      if (!ok) lastFailure = 'dismissed';
       completer.complete(ok);
     }
     unawaited(_preload());

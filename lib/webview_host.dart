@@ -130,10 +130,13 @@ class WebViewHost {
   Future<void> dispatchRewardedAdResult({
     required bool ok,
     String reason = 'aiDraw',
+    String? error,
   }) async {
     final payload = jsonEncode({
       'ok': ok,
       'reason': reason,
+      // 실패 시 웹이 안내 문구를 고를 수 있게: no_ad | dismissed
+      if (!ok && error != null) 'error': error,
     });
     await runJs('''
       window.__DIARY_FLUTTER__ = true;
